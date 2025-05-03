@@ -1,0 +1,774 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:get/get_rx/src/rx_workers/utils/debouncer.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:radar/core/services/LocationService.dart';
+import 'package:radar/core/services/MapLauncherService.dart';
+import 'package:radar/core/services/OffersService.dart';
+import 'package:radar/core/theme/app_colors.dart';
+import 'package:radar/data/model/OfferModel.dart';
+import 'package:radar/data/model/ProvidenceModel.dart';
+import 'package:radar/view/components/offers/OfferDetailsBottomSheet.dart';
+import 'package:radar/view/components/ui/CustomDialog.dart';
+import 'package:radar/view/components/ui/CustomToast.dart';
+
+class OffersRadarController extends GetxController
+    with GetSingleTickerProviderStateMixin {
+  // Services
+  final OffersService _offersService = OffersService();
+  final LocationService _locationService = Get.find<LocationService>();
+  final MapLauncherService _mapLauncherService = Get.find<MapLauncherService>();
+
+  // User location
+  final Rx<Position?> userLocation = Rx<Position?>(null);
+
+  // Search parameters
+  final RxDouble currentRadius = 1.0.obs;
+  final RxString selectedCategoryId =
+      ''.obs; // معرف الفئة المحددة، يكون فارغاً عند اختيار "الكل"
+
+  final RxString selectedCategory = 'الكل'.obs;
+
+  final RxString selectedCategoryName = 'الكل'.obs; // اسم الفئة المحددة للعرض
+  final RxList<CategoryModel> categories =
+      <CategoryModel>[].obs; // قائمة الفئات كاملة مع ID والاسم
+
+  // Sorting and filtering
+  final RxString sortBy = 'distance'.obs; // 'distance', 'discount', 'price'
+  final RxBool descendingOrder = false.obs;
+
+  // UI States
+  final RxBool isLoading = false.obs;
+  final RxBool isScanning = false.obs;
+  final RxBool showOffersList = false.obs;
+  final RxBool showRadarMode = false.obs;
+  final RxBool lowBatteryMode = false.obs;
+  final RxBool hasCompletedScan =
+      false.obs; // Flag to track if a scan has been completed
+
+  final RxBool hasFoundOffers = false.obs; // متغير جديد لتتبع وجود عروض
+
+  // NEW: Enhanced Radar Animation State
+  final RxBool isShowingRadarAnimation = false.obs;
+  Timer? _radarDisplayTimer;
+
+  // Offers data
+  final RxList<OfferModel> discoveredOffers = <OfferModel>[].obs;
+
+  // Animation controller for radar
+  late AnimationController radarAnimationController;
+
+  // Debouncer for radius changes
+  final Debouncer _debouncer = Debouncer(
+      delay: const Duration(
+    milliseconds: 500,
+  ));
+
+  // Location updates subscription
+  StreamSubscription<Position>? _locationSubscription;
+
+  final RxList<ProvidenceModel> providences = <ProvidenceModel>[].obs;
+  final Rx<ProvidenceModel?> selectedProvidence = Rx<ProvidenceModel?>(null);
+
+  final Rx<ProvidenceModel?> tempSelectedProvidence =
+      Rx<ProvidenceModel?>(null);
+
+  // متغيرات مؤقتة للفلاتر غير المطبقة
+  final RxString tempSelectedCategoryId = ''.obs;
+  final RxString tempSelectedCategoryName = 'الكل'.obs;
+  final RxDouble tempCurrentRadius = 1.0.obs;
+  final RxString tempSortBy = 'distance'.obs;
+  final RxBool tempDescendingOrder = false.obs;
+  final RxBool hasFilterChanges = false.obs;
+
+  void initTempFilters() {
+    // تهيئة بسيطة للقيم المؤقتة من القيم الفعلية
+    tempSelectedProvidence.value = selectedProvidence.value;
+    tempSelectedCategoryId.value = selectedCategoryId.value;
+    tempSelectedCategoryName.value = selectedCategoryName.value;
+    tempCurrentRadius.value = currentRadius.value;
+    tempSortBy.value = sortBy.value;
+    tempDescendingOrder.value = descendingOrder.value;
+  }
+
+  void applyTempFilters() {
+    // نقل القيم المؤقتة إلى القيم الفعلية بشكل مباشر
+    selectedProvidence.value = tempSelectedProvidence.value;
+    selectedCategoryId.value = tempSelectedCategoryId.value;
+    selectedCategoryName.value = tempSelectedCategoryName.value;
+    currentRadius.value = tempCurrentRadius.value;
+    sortBy.value = tempSortBy.value;
+    descendingOrder.value = tempDescendingOrder.value;
+
+    hasFilterChanges.value = false;
+
+    // تحديث واجهة المستخدم
+    update();
+  }
+
+  // تعديل دالة changeRadius لاستخدام المتغير المؤقت
+  void changeRadius(double radius, {bool isTemp = true}) {
+    if (isTemp) {
+      // استخدام المتغير المؤقت في حالة الاستخدام داخل الفلتر
+      tempCurrentRadius.value = radius;
+    } else {
+      // استخدام المتغير الفعلي في حالة الاستخدام في واجهة المستخدم الرئيسية
+      currentRadius.value = radius;
+      // تحديث المتغير المؤقت أيضًا للحفاظ على التزامن
+      tempCurrentRadius.value = radius;
+    }
+  }
+
+// تعديل دالة changeCategory لاستخدام المتغيرات المؤقتة
+  void changeCategory(String id, String name, {bool isTemp = true}) {
+    print('Changing category to: $id - $name, isTemp: $isTemp');
+
+    if (isTemp) {
+      // تغيير القيم المؤقتة فقط عند استخدامها داخل نافذة الفلتر
+      tempSelectedCategoryId.value = id;
+      tempSelectedCategoryName.value = name;
+    } else {
+      // تغيير القيم الفعلية عند استخدامها خارج نافذة الفلتر
+      selectedCategoryId.value = id;
+      selectedCategoryName.value = name;
+      // تحديث القيم المؤقتة أيضًا للحفاظ على التزامن
+      tempSelectedCategoryId.value = id;
+      tempSelectedCategoryName.value = name;
+    }
+
+    // تحديث واجهة المستخدم
+    update();
+  }
+
+// تعديل دالة changeProvidence لاستخدام المتغير المؤقت
+  void changeProvidence(ProvidenceModel providence, {bool isTemp = true}) {
+    print(
+        'Changing providence to: ${providence.id} - ${providence.name}, isTemp: $isTemp');
+
+    if (isTemp) {
+      // تغيير القيمة المؤقتة فقط عند استخدامها داخل نافذة الفلتر
+      tempSelectedProvidence.value = providence;
+    } else {
+      // تغيير القيمة الفعلية عند استخدامها خارج نافذة الفلتر
+      selectedProvidence.value = providence;
+      // تحديث القيمة المؤقتة أيضًا للحفاظ على التزامن
+      tempSelectedProvidence.value = providence;
+    }
+
+    // تحديث واجهة المستخدم بشكل صريح
+    update();
+  }
+
+// تعديل دالة changeSorting لاستخدام المتغيرات المؤقتة
+  void changeSorting(String newSortBy) {
+    // إذا تم النقر على نفس خيار الترتيب، قم بتبديل الترتيب (تصاعدي/تنازلي)
+    if (tempSortBy.value == newSortBy) {
+      tempDescendingOrder.toggle();
+    } else {
+      tempSortBy.value = newSortBy;
+      tempDescendingOrder.value = false;
+    }
+
+    update();
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+
+    providences.value = ProvidenceModel.getProvidences();
+
+    selectedProvidence.value = providences.first; // 'موقعي الحالي'
+
+    // Initialize radar animation controller
+    radarAnimationController = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: 3),
+    );
+
+    // Load categories first
+    fetchCategories();
+
+    // تحديث: أزلنا استدعاء فحص الموقع التلقائي من هنا
+    // ما زلنا نحتفظ بفحص الموقع ولكن بدون بدء البحث
+    Future.delayed(Duration(milliseconds: 500), () {
+      _checkLocationPermissionWithoutScan();
+    });
+
+    // Check battery status
+    checkBatteryStatus();
+  }
+
+  // دالة فحص الموقع بدون بدء البحث تلقائياً
+  Future<void> _checkLocationPermissionWithoutScan() async {
+    try {
+      isLoading.value = true;
+
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+      if (serviceEnabled) {
+        // Get permission and location only
+        final hasPermission = await _locationService.requestPermission();
+        if (hasPermission) {
+          getUserLocation(skipAutoScan: true); // تمرير خيار تخطي البحث التلقائي
+        }
+      }
+    } catch (e) {
+      print('Error checking location service: $e');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  @override
+  void onReady() {
+    super.onReady();
+    // فقط نبدأ بتحديثات الموقع بدون البحث التلقائي
+    startLocationUpdates();
+  }
+
+  @override
+  void onClose() {
+    // Cleanup
+    stopLocationUpdates();
+    radarAnimationController.dispose();
+    _debouncer.cancel();
+
+    // NEW: Cancel radar display timer
+    if (_radarDisplayTimer != null) {
+      _radarDisplayTimer!.cancel();
+    }
+
+    super.onClose();
+  }
+
+  // Check if location service is enabled
+  Future<bool> checkAndRequestLocationService() async {
+    try {
+      isLoading.value = true;
+
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+      if (!serviceEnabled) {
+        // Use Completer to get result from CustomDialog
+        final completer = Completer<bool>();
+
+        // Show custom dialog to enable location service
+        CustomDialog.show(
+          title: 'خدمة الموقع معطلة',
+          message: 'يرجى تفعيل GPS لتتمكن من استخدام ميزات تحديد الموقع',
+          icon: Icons.location_off,
+          iconColor: AppColors.primary,
+          confirmButtonColor: AppColors.primary,
+          cancelText: 'إلغاء',
+          confirmText: 'فتح الإعدادات',
+          onCancel: () {
+            completer.complete(false);
+          },
+          onConfirm: () async {
+            completer.complete(true);
+          },
+        );
+
+        bool shouldOpenSettings = await completer.future;
+
+        if (shouldOpenSettings) {
+          await Geolocator.openLocationSettings();
+
+          // Check again after settings opened
+          serviceEnabled = await Geolocator.isLocationServiceEnabled();
+          if (serviceEnabled) {
+            // Now get permission and location
+            getUserLocation();
+            return true;
+          }
+        }
+        return false;
+      }
+
+      // If service is already enabled, get permission and location
+      getUserLocation();
+      return true;
+    } catch (e) {
+      print('Error checking location service: $e');
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Fetch categories from API
+  Future<void> fetchCategories() async {
+    try {
+      isLoading.value = true;
+      final fetchedCategories = await _offersService.getCategories();
+
+      // إضافة فئة "الكل" في بداية القائمة
+      categories.clear();
+      categories
+          .add(CategoryModel(id: '', name: 'الكل')); // استخدام معرف فارغ للكل
+      categories.addAll(fetchedCategories);
+
+      // اختيار "الكل" كقيمة افتراضية
+      selectedCategoryId.value = '';
+      selectedCategoryName.value = 'الكل';
+    } catch (e) {
+      Get.snackbar(
+        'خطأ',
+        'فشل في تحميل الفئات',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: Duration(seconds: 3),
+      );
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Get user's current location
+  Future<void> getUserLocation({bool skipAutoScan = false}) async {
+    try {
+      isLoading.value = true;
+
+      // Request location permission
+      final hasPermission = await _locationService.requestPermission();
+
+      if (hasPermission) {
+        final location = await _locationService.getCurrentLocation();
+
+        if (location != null) {
+          userLocation.value = location;
+
+          // تعديل الشرط هنا لتخطي البحث التلقائي عند فتح الواجهة
+          if (!hasCompletedScan.value &&
+              discoveredOffers.isEmpty &&
+              !skipAutoScan) {
+            scanForOffers();
+          }
+        } else {
+          // Use default location (Riyadh) if user location is not available
+          CustomToast.showWarningToast(
+              message:
+                  'تعذر الحصول على موقعك الحالي، سيتم استخدام موقعك عند فتح خرائط جوجل',
+              duration: Duration(seconds: 3));
+        }
+      } else {
+        CustomToast.showWarningToast(
+            message: 'يرجى السماح بالوصول إلى موقعك للحصول على أفضل تجربة',
+            duration: Duration(seconds: 3));
+      }
+    } catch (e) {
+      Get.snackbar(
+        'خطأ',
+        'فشل في تحديد موقعك',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: Duration(seconds: 3),
+      );
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Start listening to location updates
+  void startLocationUpdates() {
+    // Stop any existing subscription
+    stopLocationUpdates();
+
+    // Skip if we don't have permission
+    if (userLocation.value == null) return;
+
+    // Set update interval based on battery mode
+    final interval =
+        lowBatteryMode.value ? Duration(minutes: 5) : Duration(minutes: 1);
+
+    _locationSubscription = _locationService
+        .getLocationStream(interval)
+        .listen((Position newLocation) {
+      // Update user location
+      userLocation.value = newLocation;
+
+      // If already scanning, update offers with new location
+      if (discoveredOffers.isNotEmpty && !isScanning.value) {
+        // Only rescan if location has changed significantly (> 100 meters)
+        final distance = Geolocator.distanceBetween(
+                userLocation.value!.latitude,
+                userLocation.value!.longitude,
+                newLocation.latitude,
+                newLocation.longitude) /
+            1000; // Convert to kilometers
+
+        if (distance > 0.1) {
+          // > 100 meters
+          refreshOffersWithNewLocation();
+        }
+      }
+    });
+  }
+
+  // Calculate distance between two coordinates
+  double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    return Geolocator.distanceBetween(lat1, lon1, lat2, lon2) /
+        1000; // Convert to kilometers
+  }
+
+  // Stop location updates
+  void stopLocationUpdates() {
+    _locationSubscription?.cancel();
+    _locationSubscription = null;
+  }
+
+  // Refresh offers based on new location without UI changes
+  void refreshOffersWithNewLocation() async {
+    // لا نقوم بتحديث العروض إذا لم يكن الموقع الحالي محدداً
+    if (selectedProvidence.value?.id != 'CURRENT_LOCATION') {
+      return;
+    }
+
+    if (userLocation.value == null || isScanning.value) return;
+
+    try {
+      // Debug log
+      print(
+          'Refreshing offers with new location: ${userLocation.value!.latitude}, ${userLocation.value!.longitude}');
+
+      // Prepare filter parameters
+      final filters = <String, dynamic>{
+        'latitude': userLocation.value!.latitude,
+        'longitude': userLocation.value!.longitude,
+        'maxDistance': currentRadius.value,
+      };
+
+      // إضافة فلتر الفئة إذا كان محدد
+      if (selectedCategoryId.value.isNotEmpty) {
+        filters['categoryId'] = selectedCategoryId.value;
+      }
+
+      // Fetch offers with filters
+      final offers = await _offersService.getOffers(filters);
+
+      // Debug log
+      print('Found ${offers.length} offers near current location');
+
+      // Update discovered offers
+      discoveredOffers.assignAll(offers);
+    } catch (e) {
+      // Silent refresh, only log error
+      print('Failed to refresh offers: ${e.toString()}');
+    }
+  }
+
+  // Check device battery status
+  void checkBatteryStatus() async {
+    try {
+      // In a real app, use battery_plus or device_info_plus to check battery
+      // For now, just setting to false
+      lowBatteryMode.value = false;
+
+      // Adjust location updates based on battery status
+      if (_locationSubscription != null) {
+        stopLocationUpdates();
+        startLocationUpdates();
+      }
+    } catch (e) {
+      print('Failed to check battery status: ${e.toString()}');
+    }
+  }
+
+  final RxBool showSuccessMessage = false.obs;
+
+  void resetRadarView() {
+    // إعادة ضبط حالة الرادار
+    isShowingRadarAnimation.value = true;
+    showRadarMode.value = true;
+    showSuccessMessage.value = false;
+    hasFoundOffers.value = false;
+
+    // إيقاف أي مؤقت موجود
+    if (_radarDisplayTimer != null) {
+      _radarDisplayTimer!.cancel();
+      _radarDisplayTimer = null;
+    }
+  }
+
+  Future<void> scanForOffers() async {
+    print('Scan initiated, user location: ${userLocation.value}');
+
+    // الفحص إذا كان المستخدم يريد موقعه الحالي بينما موقعه غير متاح
+    if (selectedProvidence.value?.id == 'CURRENT_LOCATION' &&
+        userLocation.value == null) {
+      showLocationPermissionDialog();
+      return;
+    }
+
+    try {
+      // التأكد من تفعيل عرض الرادار قبل أي شيء
+      isShowingRadarAnimation.value = true;
+      isLoading.value = true;
+      isScanning.value = true;
+      showSuccessMessage.value = false; // إخفاء رسالة النجاح في البداية
+      hasFoundOffers.value = false; // إعادة ضبط مؤشر وجود العروض
+
+      // بدء تحريك الرادار
+      radarAnimationController.repeat();
+
+      // تحضير وسائط الفلتر
+      final filters = <String, dynamic>{};
+
+      // إضافة معرف الفئة إذا كان محدداً
+      if (selectedCategoryId.value.isNotEmpty) {
+        filters['categoryId'] = selectedCategoryId.value;
+      }
+
+      // اختيار إحداثيات البحث بناءً على المحافظة المحددة
+      if (selectedProvidence.value?.id == 'CURRENT_LOCATION') {
+        // استخدام موقع المستخدم الحالي ونطاق البحث
+        filters['latitude'] = userLocation.value!.latitude;
+        filters['longitude'] = userLocation.value!.longitude;
+        filters['maxDistance'] = currentRadius.value;
+      } else {
+        // استخدام معرف المدينة فقط عند اختيار مدينة محددة
+        filters['city'] = selectedProvidence.value!.id;
+      }
+
+      // سجل التصحيح
+      print('Scanning with filters: $filters');
+
+      // تأخير لإظهار تجربة البحث - 3 ثواني لتجربة مستخدم أفضل
+      await Future.delayed(Duration(milliseconds: 2500));
+
+      // بعد 2.5 ثانية، ابدأ بإظهار نقاط على الرادار تدريجياً
+      hasFoundOffers.value = true;
+
+      // استمر في العرض لثانية إضافية
+      await Future.delayed(Duration(milliseconds: 1000));
+
+      // جلب العروض باستخدام الفلتر
+      final offers = await _offersService.getOffers(filters);
+
+      // سجل التصحيح
+      print('Found ${offers.length} offers');
+
+      // تحديث العروض المكتشفة
+      discoveredOffers.assignAll(offers);
+
+      // إظهار وضع الرادار لعرض النتائج
+      showRadarMode.value = true;
+
+      // تحديد أن المسح قد اكتمل
+      hasCompletedScan.value = true;
+
+      // إيقاف حالة المسح ولكن استمرار إظهار الرادار
+      isScanning.value = false;
+
+      // إلغاء أي مؤقت موجود
+      if (_radarDisplayTimer != null) {
+        _radarDisplayTimer!.cancel();
+      }
+
+      // تأخير مدته 1.5 ثانية لإظهار رسالة النتيجة قبل إخفاء الرادار
+      Future.delayed(Duration(milliseconds: 1500), () {
+        // إظهار رسالة بناءً على وجود عروض أو لا
+        showSuccessMessage.value = true;
+
+        // استمرار عرض الرادار لمدة ثوان إضافية
+        _radarDisplayTimer = Timer(Duration(seconds: 3), () {
+          isShowingRadarAnimation.value = false;
+        });
+      });
+    } catch (e) {
+      print('Error scanning for offers: ${e.toString()}');
+
+      CustomToast.showErrorToast(
+          message: "فشل في البحث عن العروض", duration: Duration(seconds: 3));
+
+      // في حالة حدوث خطأ، أوقف جميع الرسوم المتحركة
+      isScanning.value = false;
+      isShowingRadarAnimation.value = false;
+      showSuccessMessage.value = false;
+      hasFoundOffers.value = false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Open store location in Google Maps
+  Future<void> openStoreLocation(OfferModel offer) async {
+    await _mapLauncherService.openGoogleMaps(
+      latitude: offer.store.latitude,
+      longitude: offer.store.longitude,
+      title: offer.store.name,
+    );
+  }
+
+  // Get filtered and sorted offers
+  List<OfferModel> getFilteredOffers() {
+    // تطبيق فلتر الفئة
+    List<OfferModel> filtered;
+    if (selectedCategoryName.value == 'الكل') {
+      filtered = List.from(discoveredOffers);
+    } else {
+      filtered = discoveredOffers
+          .where((offer) => offer.category.name == selectedCategoryName.value)
+          .toList();
+    }
+
+    // تطبيق الترتيب
+    switch (sortBy.value) {
+      case 'distance':
+        filtered.sort((a, b) => descendingOrder.value
+            ? b.distance!.compareTo(a.distance!)
+            : a.distance!.compareTo(b.distance!));
+        break;
+      case 'discount':
+        filtered.sort((a, b) => descendingOrder.value
+            ? a.discount.compareTo(b.discount)
+            : b.discount.compareTo(a.discount));
+        break;
+      case 'price':
+        filtered.sort((a, b) => descendingOrder.value
+            ? b.priceAfterDiscount.compareTo(a.priceAfterDiscount)
+            : a.priceAfterDiscount.compareTo(b.priceAfterDiscount));
+        break;
+    }
+
+    return filtered;
+  }
+
+  // Get message for empty state
+  String getEmptyStateMessage() {
+    if (discoveredOffers.isEmpty && isScanning.value == false) {
+      return "ابدأ البحث عن العروض القريبة";
+    } else if (discoveredOffers.isEmpty) {
+      if (selectedProvidence.value?.id == 'CURRENT_LOCATION') {
+        return "لم يتم العثور على عروض في هذا النطاق";
+      } else {
+        return "لم يتم العثور على عروض في ${selectedProvidence.value!.name}";
+      }
+    } else if (getFilteredOffers().isEmpty &&
+        selectedCategoryName.value != 'الكل') {
+      if (selectedProvidence.value?.id == 'CURRENT_LOCATION') {
+        return "لا توجد عروض في فئة ${selectedCategoryName.value} ضمن هذا النطاق";
+      } else {
+        return "لا توجد عروض في فئة ${selectedCategoryName.value} في ${selectedProvidence.value!.name}";
+      }
+    }
+    return "حاول زيادة نطاق البحث أو تغيير الفئة أو المدينة";
+  }
+
+  // Toggle offers list view
+  void toggleOffersList() {
+    showOffersList.value = !showOffersList.value;
+    if (showOffersList.value) {
+      showRadarMode.value = false;
+      radarAnimationController.stop();
+      isShowingRadarAnimation.value = false; // NEW: Hide radar animation
+
+      // Cancel any active radar display timer
+      if (_radarDisplayTimer != null) {
+        _radarDisplayTimer!.cancel();
+        _radarDisplayTimer = null;
+      }
+    }
+  }
+
+  // Toggle radar view
+  void toggleRadarMode() {
+    showRadarMode.value = !showRadarMode.value;
+    if (showRadarMode.value) {
+      showOffersList.value = false;
+      // Start radar animation when showing radar mode
+      radarAnimationController.repeat();
+      isShowingRadarAnimation.value = true; // NEW: Show radar animation
+    } else {
+      // Stop radar animation when hiding radar mode
+      radarAnimationController.stop();
+      isShowingRadarAnimation.value = false; // NEW: Hide radar animation
+
+      // Cancel any active radar display timer
+      if (_radarDisplayTimer != null) {
+        _radarDisplayTimer!.cancel();
+        _radarDisplayTimer = null;
+      }
+    }
+  }
+
+  // Format distance for display
+  String formatDistance(double distance) {
+    if (distance < 1.0) {
+      final meters = (distance * 1000).toInt();
+      return '$meters متر';
+    } else {
+      return '${distance.toStringAsFixed(1)} كم';
+    }
+  }
+
+  // Get directions to store in Google Maps
+  Future<void> getDirectionsToStore(OfferModel offer) async {
+    // Get user location if available
+    if (userLocation.value != null) {
+      await _mapLauncherService.openGoogleMapsDirections(
+        startLatitude: userLocation.value!.latitude,
+        startLongitude: userLocation.value!.longitude,
+        destinationLatitude: offer.store.latitude,
+        destinationLongitude: offer.store.longitude,
+      );
+    } else {
+      // If user location isn't available, let Google Maps determine it
+      await _mapLauncherService.openGoogleMapsDirections(
+        destinationLatitude: offer.store.latitude,
+        destinationLongitude: offer.store.longitude,
+      );
+    }
+  }
+
+  // Show offer details in bottom sheet
+  void showOfferDetails(OfferModel offer) {
+    Get.bottomSheet(
+      OfferDetailsBottomSheet(offer: offer, controller: this),
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1A1A1A),
+    );
+  }
+
+  // Show location permission dialog
+  void showLocationPermissionDialog() {
+    CustomDialog.showConfirmation(
+      title: 'طلب إذن الموقع',
+      message:
+          'يحتاج التطبيق إلى الوصول إلى موقعك لعرض العروض القريبة منك. هل توافق على منح الإذن؟',
+      onConfirm: () async {
+        // Check location service first
+        final serviceEnabled = await checkAndRequestLocationService();
+
+        if (serviceEnabled) {
+          final hasPermission = await _locationService.requestPermission();
+          if (hasPermission) {
+            getUserLocation();
+            // Don't start scan immediately, let user see their location first
+          } else {
+            Get.snackbar(
+              'تنبيه',
+              'لا يمكن البحث عن العروض بدون إذن الموقع',
+              snackPosition: SnackPosition.BOTTOM,
+              duration: Duration(seconds: 3),
+            );
+          }
+        }
+      },
+      onCancel: () {
+        Get.snackbar(
+          'تنبيه',
+          'لن تتمكن من رؤية العروض القريبة بدون إذن الموقع',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: Duration(seconds: 3),
+        );
+      },
+      cancelText: 'لا',
+      confirmText: 'نعم',
+    );
+  }
+}

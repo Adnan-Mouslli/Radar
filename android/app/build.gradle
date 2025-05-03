@@ -1,0 +1,114 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+
+android {
+    namespace "com.anycode.radar"
+    compileSdk 34
+    ndkVersion flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        applicationId "com.anycode.radar"
+        minSdkVersion 21
+        targetSdkVersion 34
+        versionCode 1
+        versionName "1.0.0"
+        
+        // Habilitar soporte para multidex
+        multiDexEnabled true
+    }
+
+    signingConfigs {
+        release {
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
+    
+    // Agregar esta configuración para resolver conflictos de ExoPlayer
+    configurations.all {
+        resolutionStrategy {
+            // Forzar el uso de una versión específica para todas las dependencias de ExoPlayer
+            force 'com.google.android.exoplayer:exoplayer-core:2.17.1'
+            force 'com.google.android.exoplayer:exoplayer-ui:2.17.1'
+            force 'com.google.android.exoplayer:exoplayer-common:2.17.1'
+            force 'com.google.android.exoplayer:exoplayer-dash:2.17.1'
+            force 'com.google.android.exoplayer:exoplayer-hls:2.17.1'
+            force 'com.google.android.exoplayer:exoplayer-smoothstreaming:2.17.1'
+            force 'com.google.android.exoplayer:exoplayer:2.17.1'
+        }
+    }
+    
+    // Agregar esta línea para evitar problemas de recursos duplicados
+    packagingOptions {
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/NOTICE.txt'
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/*.kotlin_module'
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+
+    implementation 'com.google.android.exoplayer:exoplayer-core:2.17.1'
+    implementation 'com.google.android.exoplayer:exoplayer-hls:2.17.1'
+    implementation 'com.google.android.exoplayer:exoplayer-dash:2.17.1'
+    implementation 'com.google.android.exoplayer:exoplayer-ui:2.17.1'
+    
+
+    implementation 'androidx.multidex:multidex:2.0.1'
+}

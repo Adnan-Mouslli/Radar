@@ -1,0 +1,29 @@
+# للتشغيل على جهاز Android في وضع الإنتاج (release)
+flutter run --release
+
+# لبناء APK في وضع الإنتاج 
+flutter build apk --release
+
+# لبناء نسخة bundle للنشر على Google Play
+flutter build appbundle --release
+
+# للتشغيل على جهاز iOS في وضع الإنتاج (release)
+flutter run --release -d ios
+
+# لبناء تطبيق iOS للنشر
+flutter build ios --release
+
+# لبناء تطبيق ويب في وضع الإنتاج
+flutter build web --release
+
+# للتحقق من حالة الأجهزة المتصلة قبل التشغيل
+flutter devices
+
+# لتنظيف المشروع قبل البناء (مفيد في حالة وجود مشاكل)
+flutter clean && flutter pub get && flutter run --release
+
+# للتحقق من أداء التطبيق في وضع الإنتاج
+flutter run --profile
+
+# لتشغيل المشروع مع التقاط نشاط الشاشة (مفيد للتحليل)
+flutter run --release --trace-skia
