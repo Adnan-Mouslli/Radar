@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:cached_video_player_fork/cached_video_player.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -16,10 +14,12 @@ import 'package:radar/view/components/ui/ErrorView.dart';
 import 'package:radar/view/pages/skeletons_/StoreDetailsSkeleton.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:wakelock/wakelock.dart';
+// import 'package:wakelock/wakelock.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:radar/controller/home/VideoManager.dart';
+
+import 'package:video_player/video_player.dart';
 
 /// كنترولر عرض الريلز
 class ReelsController extends GetxController with GetTickerProviderStateMixin {
@@ -108,7 +108,7 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
     pageController.addListener(_onPageScroll);
 
     // تفعيل إبقاء الشاشة مضاءة
-    Wakelock.enable();
+    // Wakelock.enable();
 
     // تهيئة مراقبة دورة حياة التطبيق
     _setupLifecycleObserver();
@@ -416,6 +416,7 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
   }
 
   // معالجة تغيير صفحة الريل
+  // في دالة onReelPageChanged
   void onReelPageChanged(int index) {
     if (index < 0 || index >= reels.length) return;
 
@@ -429,6 +430,9 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
 
     // تحديد ما إذا كان التقليب سريعًا
     _isRapidSwiping = timeSinceLastChange < 500;
+
+    // إبلاغ مدير الفيديو بحالة التقليب السريع
+    videoManager.setRapidSwipingState(_isRapidSwiping);
 
     print(
         '📱 تغيير الريل من $previousIndex إلى $index (تقليب سريع: ${_isRapidSwiping ? "نعم" : "لا"})');
@@ -452,7 +456,9 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
     final isFastSwitching = timeSinceLastSwitch.inMilliseconds < 300;
     _lastReelSwitchTime = now;
 
-    final delayMs = isFastSwitching ? 200 : 50;
+    // تقليل تأخير التحميل في حالة الاتصال السريع
+    final delayMs =
+        _isRapidSwiping ? 250 : (videoManager.isSlowConnection() ? 200 : 50);
 
     Future.delayed(Duration(milliseconds: delayMs), () {
       // التحقق من أن المستخدم لم يقم بتغيير الريل مرة أخرى
@@ -571,8 +577,7 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
 
     try {
       // تهيئة الفيديو باستخدام مدير الفيديو مع تمرير مؤشر الريل
-      final controller =
-          await videoManager.initializeVideo(id, url, posterUrl, reelIndex);
+      final controller = await videoManager.initializeVideo(id, url, reelIndex);
 
       // حساب نسبة الأبعاد
       if (controller.value.isInitialized && controller.value.size != null) {
@@ -604,6 +609,7 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
     } catch (e) {
       print('❌ خطأ في تهيئة الفيديو-ID:$id: $e');
       videoLoadingStates[id] = false;
+      videoErrorStates[id] = true; // تعيين حالة الخطأ
       update();
     }
   }
@@ -611,12 +617,12 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
   // تحميل الفيديو مسبقًا
   Future<void> preloadVideo(String id, String url,
       [String? posterUrl, int? reelIndex]) async {
-    await videoManager.preloadVideo(id, url, posterUrl, reelIndex);
+    // استدعاء دالة التحميل المسبق من مدير الفيديو
+    await videoManager.preloadVideo(id, url, reelIndex);
   }
 
   // تتبع تقدم الفيديو
-  void _setupProgressTracking(
-      String id, CachedVideoPlayerController controller) {
+  void _setupProgressTracking(String id, VideoPlayerController controller) {
     // إنشاء مؤقت للتحقق من التقدم كل 250 مللي ثانية
     Timer.periodic(Duration(milliseconds: 250), (timer) {
       // إلغاء المؤقت إذا تم التخلص من المتحكم
@@ -974,6 +980,9 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
       update();
     }).catchError((e) {
       print('❌ خطأ في تشغيل الفيديو-ID:$id: $e');
+      // تحديث حالة الخطأ
+      videoErrorStates[id] = true;
+      update();
     });
   }
 
@@ -1071,8 +1080,9 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
       // تحديد المعرفات التي يجب الاحتفاظ بها
       final keepIds = <String>{};
 
-      // نافذة متحركة للاحتفاظ بالريلز المحيطة
-      final keepWindow = _isRapidSwiping ? 2 : 3; // نافذة أصغر للتقليب السريع
+      // نافذة متحركة للاحتفاظ بالريلز المحيطة - أكثر تكيفًا
+      final keepWindow =
+          _isRapidSwiping ? 2 : (videoManager.isSlowConnection() ? 3 : 4);
 
       // الاحتفاظ بالريل الحالي والريلز المجاورة
       for (int i = -keepWindow; i <= keepWindow; i++) {
@@ -1122,7 +1132,8 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
         'تقليب سريع: $_isRapidSwiping، عدد الفيديوهات: $preloadCount');
 
     try {
-      // 1. تحميل الفيديو التالي أولاً (أولوية عالية دائماً)
+      // استراتيجية تحميل مسبق محسنة:
+      // 1. تحميل الفيديو التالي أولاً (أولوية عالية دائمًا)
       final nextIndex = currentIndex + 1;
       if (nextIndex < reels.length) {
         final nextReel = reels[nextIndex];
@@ -1135,9 +1146,8 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
         }
       }
 
-      // 2. إذا كان عدد التحميل المسبق أكبر من 1، وليس في حالة تقليب سريع
-      if (preloadCount >= 2) {
-        // تحميل الفيديو التالي الثاني
+      // 2. تحميل التالي الثاني بأولوية ثانية
+      if (preloadCount >= 2 && !_isRapidSwiping) {
         final nextNextIndex = currentIndex + 2;
         if (nextNextIndex < reels.length) {
           final nextNextReel = reels[nextNextIndex];
@@ -1151,20 +1161,19 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
         }
       }
 
-      // 3. إذا كان عدد التحميل المسبق أكبر من 2 (اتصال سريع وتقليب عادي)
-      // if (preloadCount >= 3) {
-      //   // تحميل الفيديو السابق (أدنى أولوية)
-      //   final prevIndex = currentIndex - 1;
-      //   if (prevIndex >= 0) {
-      //     final prevReel = reels[prevIndex];
-      //     if (prevReel.mediaUrls.isNotEmpty && prevReel.isVideoMedia(0)) {
-      //       final firstMedia = prevReel.mediaUrls[0];
-      //       print('🔄 تحميل مسبق للفيديو السابق: ${prevReel.id}');
-      //       await preloadVideo(
-      //           prevReel.id, firstMedia.url, firstMedia.poster, prevIndex);
-      //     }
-      //   }
-      // }
+      // 3. تحميل الفيديو السابق بأولوية منخفضة (فقط في حالة الاتصال السريع)
+      if (preloadCount >= 3 && !isSlowConnection && !_isRapidSwiping) {
+        final prevIndex = currentIndex - 1;
+        if (prevIndex >= 0) {
+          final prevReel = reels[prevIndex];
+          if (prevReel.mediaUrls.isNotEmpty && prevReel.isVideoMedia(0)) {
+            final firstMedia = prevReel.mediaUrls[0];
+            print('🔄 تحميل مسبق للفيديو السابق: ${prevReel.id}');
+            await preloadVideo(
+                prevReel.id, firstMedia.url, firstMedia.poster, prevIndex);
+          }
+        }
+      }
     } catch (e) {
       print('⚠️ خطأ في التحميل المسبق: $e');
     }
@@ -1177,8 +1186,8 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
 
-      // تنظيف مدير التخزين المؤقت
-      DefaultCacheManager().emptyCache();
+      // استدعاء دالة أكثر فعالية لتحسين الذاكرة
+      videoManager.cleanupIfMemoryPressure();
     } catch (e) {
       print('خطأ في تنظيف ذاكرة الصور المؤقتة: $e');
     }
@@ -1735,7 +1744,7 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
     cleanupImageCache();
 
     // تعطيل إبقاء الشاشة مضاءة
-    Wakelock.disable();
+    // Wakelock.disable();
 
     print('✅ تم إغلاق ReelsController بنجاح');
     super.onClose();

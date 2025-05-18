@@ -37,8 +37,6 @@ dependencies:
   cupertino_icons: ^1.0.6
 
 
-
-
   get:
   intl:
   http:
@@ -48,16 +46,13 @@ dependencies:
   dartz:
   animate_do:
   cached_network_image:
-  better_player: ^0.0.83
-  cached_video_player_fork: ^2.0.4
-  connectivity_plus: ^4.0.2
-  flutter_cache_manager:
+  connectivity_plus: ^6.1.4
   url_launcher:
   font_awesome_flutter:
   share_plus: 
-  path_provider:
+  path_provider: ^2.1.4
   package_info_plus:
-  wakelock: ^0.6.2
+  # wakelock:
   uni_links:
   country_code_picker:
   image_picker: 
@@ -67,11 +62,14 @@ dependencies:
   # location: ^4.4.0
   carousel_slider:
   photo_view:
-  syncfusion_flutter_pdfviewer:
+  syncfusion_flutter_pdfviewer: ^24.1.41
+  
   phosphor_flutter: ^1.0.0
+    
+  flutter_cache_manager: ^3.4.1
 
-
-
+  video_player: ^2.7.2
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter

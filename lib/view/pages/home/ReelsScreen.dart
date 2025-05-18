@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cached_video_player_fork/cached_video_player.dart';
+import 'package:video_player/video_player.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
@@ -813,165 +813,186 @@ class ReelItem extends GetView<ReelsController> {
   }
 
   Widget _buildVideoPlayer(String mediaUrl, String? posterUrl) {
-    return GetBuilder<ReelsController>(
-      builder: (controller) {
-        // استخدام دوال الكنترولر الجديدة للحصول على المعلومات
-        final videoAspectRatio = controller.getVideoAspectRatio(reel.id);
-        final isLoading = controller.videoLoadingStates[reel.id] == true;
-        final hasError = controller.videoErrorStates[reel.id] == true;
-        final isInitialized = controller.isVideoInitialized(reel.id);
-        final isPlaying = controller.isVideoPlaying(reel.id);
+  return GetBuilder<ReelsController>(
+    builder: (controller) {
+      // استخدام دوال الكنترولر الجديدة للحصول على المعلومات
+      final videoAspectRatio = controller.getVideoAspectRatio(reel.id);
+      final isLoading = controller.videoLoadingStates[reel.id] == true;
+      final hasError = controller.videoErrorStates[reel.id] == true;
+      final isInitialized = controller.isVideoInitialized(reel.id);
+      final isPlaying = controller.isVideoPlaying(reel.id);
 
-        // الحصول على المتحكم من VideoManager
-        final videoController = controller.videoManager.getController(reel.id);
+      // الحصول على المتحكم من VideoManager
+      final videoController = controller.videoManager.getController(reel.id);
 
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          color: Colors.black,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // عرض صورة البوستر كخلفية ضبابية دائمة (حتى عند تشغيل الفيديو)
-              if (posterUrl != null && posterUrl.isNotEmpty)
-                Positioned.fill(
-                  child: Stack(
-                    children: [
-                      // البوستر كخلفية
-                      Positioned.fill(
-                        child: AnimatedOpacity(
-                          opacity: 1.0,
-                          duration: Duration(milliseconds: 100),
-                          child: CachedNetworkImage(
-                            imageUrl: posterUrl,
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: Colors.black,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // عرض صورة البوستر كخلفية ضبابية دائمة (حتى عند تشغيل الفيديو)
+            if (posterUrl != null && posterUrl.isNotEmpty)
+              Positioned.fill(
+                child: Stack(
+                  children: [
+                    // البوستر كخلفية
+                    Positioned.fill(
+                      child: AnimatedOpacity(
+                        opacity: 1.0,
+                        duration: Duration(milliseconds: 100),
+                        child: Image.network(
+                          posterUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(color: Colors.black);
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(color: Colors.black);
+                          },
+                        ),
+                      ),
+                    ),
+                    // تأثير الضباب
+                    Positioned.fill(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                        child: Container(
+                          color: Colors.grey[800]!.withOpacity(0.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // عرض الفيديو أو البوستر في المركز
+            Center(
+              child: AspectRatio(
+                aspectRatio: videoAspectRatio ?? 9 / 16,
+                child: isInitialized && videoController != null
+                    ? AnimatedOpacity(
+                        opacity: isPlaying ? 1.0 : 0.9,
+                        duration: Duration(milliseconds: 150),
+                        child: VideoPlayer(videoController),
+                      )
+                    : (posterUrl != null
+                        ? Image.network(
+                            posterUrl,
                             fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
-                            fadeInDuration: Duration.zero,
-                            placeholderFadeInDuration: Duration.zero,
-                          ),
-                        ),
-                      ),
-                      // تأثير الضباب
-                      Positioned.fill(
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-                          child: Container(
-                            color: Colors.grey[800]!.withOpacity(0.5),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(color: Colors.black);
+                            },
+                          )
+                        : Container(color: Colors.black)),
+              ),
+            ),
 
-              // عرض الفيديو أو البوستر في المركز
+            // مؤشر التحميل
+            if (isLoading && !isInitialized)
               Center(
-                child: AspectRatio(
-                  aspectRatio: videoAspectRatio ?? 9 / 16,
-                  child: isInitialized && videoController != null
-                      ? AnimatedOpacity(
-                          opacity: isPlaying ? 1.0 : 0.9,
-                          duration: Duration(milliseconds: 150),
-                          child: CachedVideoPlayer(videoController),
-                        )
-                      : (posterUrl != null
-                          ? CachedNetworkImage(
-                              imageUrl: posterUrl,
-                              fit: BoxFit.cover,
-                              fadeInDuration: Duration.zero,
-                            )
-                          : Container(color: Colors.black)),
+                child: CircularProgressIndicator(
+                  color: AppColors.primary,
+                  strokeWidth: 2,
                 ),
               ),
 
-              // مؤشر التحميل
-              if (false && isLoading && !isInitialized)
-                Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.primary,
-                    strokeWidth: 2,
+            // أيقونة التشغيل
+            if (isInitialized && !isPlaying)
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.play_arrow,
+                    color: Colors.white,
+                    size: 50,
                   ),
                 ),
+              ),
 
-              // أيقونة التشغيل
-              if (isInitialized && !isPlaying)
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.play_arrow,
+            // رسالة الخطأ
+            if (hasError)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
                       color: Colors.white,
-                      size: 50,
+                      size: 40,
                     ),
-                  ),
-                ),
-
-              // رسالة الخطأ
-              if (hasError)
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
+                    SizedBox(height: 8),
+                    Text(
+                      "حدث خطأ أثناء تحميل الفيديو",
+                      style: TextStyle(
                         color: Colors.white,
-                        size: 40,
+                        fontSize: 14,
                       ),
-                      SizedBox(height: 8),
-                      Text(
-                        "حدث خطأ أثناء تحميل الفيديو",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
+                    ),
+                    SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        // إعادة تهيئة الفيديو
+                        controller.initializeVideo(
+                            reel.id, mediaUrl, posterUrl, controller.currentReelIndex.value);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       ),
-                      SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          // إعادة تهيئة الفيديو
-                          controller.initializeVideo(
-                              reel.id, mediaUrl, posterUrl);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        ),
-                        child: Text("إعادة المحاولة"),
-                      ),
-                    ],
-                  ),
-                ),
-
-              // طبقة التدرج
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.4),
-                      Colors.transparent,
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.7),
-                    ],
-                    stops: const [0.0, 0.2, 0.7, 1.0],
-                  ),
+                      child: Text("إعادة المحاولة"),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
+            // عرض شريط التقدم
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: controller.videoProgressValues.containsKey(reel.id)
+                  ? LinearProgressIndicator(
+                      value: controller.videoProgressValues[reel.id],
+                      backgroundColor: Colors.grey.withOpacity(0.2),
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      minHeight: 2,
+                    )
+                  : SizedBox(height: 2),
+            ),
+
+            // طبقة التدرج
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.4),
+                    Colors.transparent,
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.7),
+                  ],
+                  stops: const [0.0, 0.2, 0.7, 1.0],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
   Widget _buildProgressBar() {
     return GetBuilder<ReelsController>(
       builder: (controller) {

@@ -1,26 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- السماح بـ HTTPS فقط للإصدار الإنتاجي -->
+    <!-- تفعيل HTTP في وضع التطوير -->
+    <debug-overrides>
+        <base-config cleartextTrafficPermitted="true">
+            <trust-anchors>
+                <certificates src="system" />
+                <certificates src="user" />
+            </trust-anchors>
+        </base-config>
+    </debug-overrides>
+    
+    <!-- السماح بالاتصال بنطاقات محددة حتى في وضع الإنتاج -->
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- أضف هنا جميع النطاقات التي تستضيف الفيديوهات الخاصة بك -->
+        <domain includeSubdomains="true">radar.anycode-sy.com</domain>
+        <domain includeSubdomains="true">anycode-sy.com</domain>
+        <!-- أضف المزيد من النطاقات حسب الحاجة -->
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+    
+    <!-- الإعداد الأساسي (للإنتاج يكون HTTPS فقط) -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-    
-    <!-- السماح بـ HTTP للتطوير المحلي فقط -->
-    <debug-overrides>
-        <base-config cleartextTrafficPermitted="true">
-            <trust-anchors>
-                <certificates src="system" />
-            </trust-anchors>
-        </base-config>
-    </debug-overrides>
-    
-    <!-- تكوين خاص لنطاقك إذا لزم الأمر -->
-    <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">radar.anycode-sy.com</domain>
-        <trust-anchors>
-            <certificates src="system" />
-        </trust-anchors>
-    </domain-config>
 </network-security-config>
