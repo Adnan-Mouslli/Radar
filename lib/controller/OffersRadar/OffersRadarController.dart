@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get/get_rx/src/rx_workers/utils/debouncer.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:radar/controller/OffersRadar/AppLifecycleController.dart';
 import 'package:radar/core/services/LocationService.dart';
 import 'package:radar/core/services/MapLauncherService.dart';
 import 'package:radar/core/services/OffersService.dart';
@@ -190,7 +191,19 @@ class OffersRadarController extends GetxController
     // Load categories first
     fetchCategories();
 
-    // تحديث: أزلنا استدعاء فحص الموقع التلقائي من هنا
+    ever(Get.find<AppLifecycleController>().isAppInForeground,
+        (bool isInForeground) {
+      if (isInForeground) {
+        // التطبيق عاد للمقدمة - إعادة بدء تحديثات الموقع إذا لزم الأمر
+        if (userLocation.value != null && _locationSubscription == null) {
+          startLocationUpdates();
+        }
+      } else {
+        // التطبيق ذهب للخلفية - إيقاف تحديثات الموقع
+        stopLocationUpdates();
+      }
+    });
+
     // ما زلنا نحتفظ بفحص الموقع ولكن بدون بدء البحث
     Future.delayed(Duration(milliseconds: 500), () {
       _checkLocationPermissionWithoutScan();
@@ -235,7 +248,6 @@ class OffersRadarController extends GetxController
     radarAnimationController.dispose();
     _debouncer.cancel();
 
-    // NEW: Cancel radar display timer
     if (_radarDisplayTimer != null) {
       _radarDisplayTimer!.cancel();
     }
@@ -375,36 +387,51 @@ class OffersRadarController extends GetxController
 
   // Start listening to location updates
   void startLocationUpdates() {
-    // Stop any existing subscription
+    // إيقاف أي اشتراكات سابقة
     stopLocationUpdates();
 
-    // Skip if we don't have permission
+    // التحقق من وجود إذن الموقع
     if (userLocation.value == null) return;
 
-    // Set update interval based on battery mode
-    final interval =
-        lowBatteryMode.value ? Duration(minutes: 5) : Duration(minutes: 1);
+    // إضافة: التحقق من أن التطبيق في المقدمة
+    if (!Get.isRegistered<AppLifecycleController>()) {
+      Get.put(AppLifecycleController());
+    }
+
+    // التحديثات تعمل فقط عندما يكون التطبيق في المقدمة
+    final appLifecycleController = Get.find<AppLifecycleController>();
+    if (!appLifecycleController.isAppInForeground.value) {
+      print('التطبيق في الخلفية - لن يتم بدء تحديثات الموقع');
+      return;
+    }
+
+    // استخدام فترة تحديث أطول لتقليل استهلاك البطارية
+    final interval = Duration(minutes: 5); // زيادة الفترة الزمنية
 
     _locationSubscription = _locationService
         .getLocationStream(interval)
         .listen((Position newLocation) {
-      // Update user location
-      userLocation.value = newLocation;
+      // تحديث موقع المستخدم فقط إذا كان التطبيق في المقدمة
+      if (appLifecycleController.isAppInForeground.value) {
+        userLocation.value = newLocation;
 
-      // If already scanning, update offers with new location
-      if (discoveredOffers.isNotEmpty && !isScanning.value) {
-        // Only rescan if location has changed significantly (> 100 meters)
-        final distance = Geolocator.distanceBetween(
-                userLocation.value!.latitude,
-                userLocation.value!.longitude,
-                newLocation.latitude,
-                newLocation.longitude) /
-            1000; // Convert to kilometers
+        // تحديث العروض إذا تغير الموقع بشكل كبير
+        if (discoveredOffers.isNotEmpty && !isScanning.value) {
+          final distance = Geolocator.distanceBetween(
+                  userLocation.value!.latitude,
+                  userLocation.value!.longitude,
+                  newLocation.latitude,
+                  newLocation.longitude) /
+              1000;
 
-        if (distance > 0.1) {
-          // > 100 meters
-          refreshOffersWithNewLocation();
+          if (distance > 0.5) {
+            // زيادة المسافة المطلوبة لإعادة البحث
+            refreshOffersWithNewLocation();
+          }
         }
+      } else {
+        // إيقاف التحديثات إذا ذهب التطبيق للخلفية
+        stopLocationUpdates();
       }
     });
   }
@@ -423,40 +450,49 @@ class OffersRadarController extends GetxController
 
   // Refresh offers based on new location without UI changes
   void refreshOffersWithNewLocation() async {
-    // لا نقوم بتحديث العروض إذا لم يكن الموقع الحالي محدداً
-    if (selectedProvidence.value?.id != 'CURRENT_LOCATION') {
-      return;
-    }
-
     if (userLocation.value == null || isScanning.value) return;
 
     try {
-      // Debug log
       print(
           'Refreshing offers with new location: ${userLocation.value!.latitude}, ${userLocation.value!.longitude}');
 
-      // Prepare filter parameters
-      final filters = <String, dynamic>{
-        'latitude': userLocation.value!.latitude,
-        'longitude': userLocation.value!.longitude,
-        'maxDistance': currentRadius.value,
-      };
-
-      // إضافة فلتر الفئة إذا كان محدد
-      if (selectedCategoryId.value.isNotEmpty) {
-        filters['categoryId'] = selectedCategoryId.value;
+      // تحديث المسافات للعروض الموجودة
+      for (var offer in discoveredOffers) {
+        offer.distance = calculateDistance(
+          userLocation.value!.latitude,
+          userLocation.value!.longitude,
+          offer.store.latitude,
+          offer.store.longitude,
+        );
       }
 
-      // Fetch offers with filters
-      final offers = await _offersService.getOffers(filters);
+      // إذا كان البحث حسب الموقع الحالي، نعيد البحث
+      if (selectedProvidence.value?.id == 'CURRENT_LOCATION') {
+        final filters = <String, dynamic>{
+          'latitude': userLocation.value!.latitude,
+          'longitude': userLocation.value!.longitude,
+          'maxDistance': currentRadius.value,
+        };
 
-      // Debug log
-      print('Found ${offers.length} offers near current location');
+        if (selectedCategoryId.value.isNotEmpty) {
+          filters['categoryId'] = selectedCategoryId.value;
+        }
 
-      // Update discovered offers
-      discoveredOffers.assignAll(offers);
+        final offers = await _offersService.getOffers(filters);
+
+        // حساب المسافات للعروض الجديدة
+        for (var offer in offers) {
+          offer.distance = calculateDistance(
+            userLocation.value!.latitude,
+            userLocation.value!.longitude,
+            offer.store.latitude,
+            offer.store.longitude,
+          );
+        }
+
+        discoveredOffers.assignAll(offers);
+      }
     } catch (e) {
-      // Silent refresh, only log error
       print('Failed to refresh offers: ${e.toString()}');
     }
   }
@@ -509,8 +545,8 @@ class OffersRadarController extends GetxController
       isShowingRadarAnimation.value = true;
       isLoading.value = true;
       isScanning.value = true;
-      showSuccessMessage.value = false; // إخفاء رسالة النجاح في البداية
-      hasFoundOffers.value = false; // إعادة ضبط مؤشر وجود العروض
+      showSuccessMessage.value = false;
+      hasFoundOffers.value = false;
 
       // بدء تحريك الرادار
       radarAnimationController.repeat();
@@ -537,13 +573,9 @@ class OffersRadarController extends GetxController
       // سجل التصحيح
       print('Scanning with filters: $filters');
 
-      // تأخير لإظهار تجربة البحث - 3 ثواني لتجربة مستخدم أفضل
+      // تأخير لإظهار تجربة البحث
       await Future.delayed(Duration(milliseconds: 2500));
-
-      // بعد 2.5 ثانية، ابدأ بإظهار نقاط على الرادار تدريجياً
       hasFoundOffers.value = true;
-
-      // استمر في العرض لثانية إضافية
       await Future.delayed(Duration(milliseconds: 1000));
 
       // جلب العروض باستخدام الفلتر
@@ -552,16 +584,29 @@ class OffersRadarController extends GetxController
       // سجل التصحيح
       print('Found ${offers.length} offers');
 
+      // حساب المسافات للعروض إذا كان لدينا موقع المستخدم
+      if (userLocation.value != null) {
+        for (var offer in offers) {
+          offer.distance = calculateDistance(
+            userLocation.value!.latitude,
+            userLocation.value!.longitude,
+            offer.store.latitude,
+            offer.store.longitude,
+          );
+        }
+      } else {
+        // إذا لم يكن لدينا موقع، نجعل المسافة null
+        for (var offer in offers) {
+          offer.distance = null;
+        }
+      }
+
       // تحديث العروض المكتشفة
       discoveredOffers.assignAll(offers);
 
       // إظهار وضع الرادار لعرض النتائج
       showRadarMode.value = true;
-
-      // تحديد أن المسح قد اكتمل
       hasCompletedScan.value = true;
-
-      // إيقاف حالة المسح ولكن استمرار إظهار الرادار
       isScanning.value = false;
 
       // إلغاء أي مؤقت موجود
@@ -569,23 +614,18 @@ class OffersRadarController extends GetxController
         _radarDisplayTimer!.cancel();
       }
 
-      // تأخير مدته 1.5 ثانية لإظهار رسالة النتيجة قبل إخفاء الرادار
+      // تأخير لإظهار رسالة النتيجة
       Future.delayed(Duration(milliseconds: 1500), () {
-        // إظهار رسالة بناءً على وجود عروض أو لا
         showSuccessMessage.value = true;
-
-        // استمرار عرض الرادار لمدة ثوان إضافية
         _radarDisplayTimer = Timer(Duration(seconds: 3), () {
           isShowingRadarAnimation.value = false;
         });
       });
     } catch (e) {
       print('Error scanning for offers: ${e.toString()}');
-
       CustomToast.showErrorToast(
           message: "فشل في البحث عن العروض", duration: Duration(seconds: 3));
 
-      // في حالة حدوث خطأ، أوقف جميع الرسوم المتحركة
       isScanning.value = false;
       isShowingRadarAnimation.value = false;
       showSuccessMessage.value = false;
@@ -619,9 +659,19 @@ class OffersRadarController extends GetxController
     // تطبيق الترتيب
     switch (sortBy.value) {
       case 'distance':
-        filtered.sort((a, b) => descendingOrder.value
-            ? b.distance!.compareTo(a.distance!)
-            : a.distance!.compareTo(b.distance!));
+        // فقط الترتيب حسب المسافة إذا كان لدينا موقع
+        if (userLocation.value != null) {
+          filtered.sort((a, b) {
+            // إذا كانت المسافة null، نضعها في النهاية
+            if (a.distance == null && b.distance == null) return 0;
+            if (a.distance == null) return 1;
+            if (b.distance == null) return -1;
+
+            return descendingOrder.value
+                ? b.distance!.compareTo(a.distance!)
+                : a.distance!.compareTo(b.distance!);
+          });
+        }
         break;
       case 'discount':
         filtered.sort((a, b) => descendingOrder.value
@@ -697,7 +747,11 @@ class OffersRadarController extends GetxController
   }
 
   // Format distance for display
-  String formatDistance(double distance) {
+  String formatDistance(double? distance) {
+    if (distance == null) {
+      return 'غير محدد';
+    }
+
     if (distance < 1.0) {
       final meters = (distance * 1000).toInt();
       return '$meters متر';

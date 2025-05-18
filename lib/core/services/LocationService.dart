@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 class LocationService extends GetxService {
   // الدالة التي تُستدعى عند تسجيل الخدمة
   Future<LocationService> init() async {
-    print('تم بدء خدمة الموقع');
+    print('تم بدء خدمة الموقع - المقدمة فقط');
     return this;
   }
   
@@ -15,10 +15,10 @@ class LocationService extends GetxService {
     return await Geolocator.checkPermission();
   }
   
-  // طلب إذن الوصول إلى الموقع
+  // طلب إذن الوصول إلى الموقع - المقدمة فقط
   Future<bool> requestPermission() async {
     try {
-      print('جاري طلب إذن الوصول إلى الموقع...');
+      print('جاري طلب إذن الوصول إلى الموقع (المقدمة فقط)...');
       
       // تحقق أولاً من تفعيل خدمة الموقع
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -34,6 +34,7 @@ class LocationService extends GetxService {
       print('حالة إذن الوصول الحالية: $permission');
       
       if (permission == LocationPermission.denied) {
+        // طلب إذن الموقع في المقدمة فقط
         permission = await Geolocator.requestPermission();
         print('حالة إذن الوصول بعد الطلب: $permission');
         
@@ -49,18 +50,24 @@ class LocationService extends GetxService {
         return false;
       }
       
-      print('تم منح إذن الوصول إلى الموقع');
-      return true;
+      // نقبل فقط إذن الموقع في المقدمة (while in use)
+      if (permission == LocationPermission.whileInUse || 
+          permission == LocationPermission.always) {
+        print('تم منح إذن الوصول إلى الموقع في المقدمة');
+        return true;
+      }
+      
+      return false;
     } catch (e) {
       print('خطأ في طلب إذن الوصول: $e');
       return false;
     }
   }
   
-  // الحصول على الموقع الحالي
+  // الحصول على الموقع الحالي - فقط عندما يكون التطبيق في المقدمة
   Future<Position?> getCurrentLocation() async {
     try {
-      print('جاري محاولة الحصول على الموقع الحالي...');
+      print('جاري محاولة الحصول على الموقع الحالي (المقدمة فقط)...');
       
       // تحقق من إذن الوصول
       LocationPermission permission = await Geolocator.checkPermission();
@@ -78,7 +85,7 @@ class LocationService extends GetxService {
         print('تم الحصول على آخر موقع معروف: ${lastKnownPosition.latitude}, ${lastKnownPosition.longitude}');
       }
       
-      // الحصول على الموقع الحالي بدقة عالية
+      // الحصول على الموقع الحالي بدقة عالية - فقط في المقدمة
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: Duration(seconds: 15), // حد زمني لتجنب التعليق
@@ -92,16 +99,15 @@ class LocationService extends GetxService {
     }
   }
   
-  // الحصول على تيار تحديثات الموقع
+  // الحصول على تيار تحديثات الموقع - فقط عندما يكون التطبيق في المقدمة
   Stream<Position> getLocationStream(Duration interval) {
     try {
-      print('بدء الاستماع إلى تحديثات الموقع');
+      print('بدء الاستماع إلى تحديثات الموقع (المقدمة فقط)');
       
-      // إعدادات تحديد الموقع
+      // إعدادات تحديد الموقع للمقدمة فقط
       final LocationSettings locationSettings = LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // الحد الأدنى للمسافة (بالمتر) قبل تلقي التحديثات
-        timeLimit: interval, // الحد الزمني الاختياري
+        distanceFilter: 100, // زيادة المسافة لتقليل التحديثات
       );
       
       // إرجاع تيار تحديثات الموقع
@@ -142,7 +148,7 @@ class LocationService extends GetxService {
       bool shouldOpenSettings = await Get.dialog(
         AlertDialog(
           title: Text('خدمة الموقع معطلة'),
-          content: Text('يرجى تفعيل GPS لتتمكن من استخدام ميزات تحديد الموقع'),
+          content: Text('يرجى تفعيل GPS لتتمكن من استخدام ميزات تحديد الموقع أثناء استخدام التطبيق'),
           actions: [
             TextButton(
               onPressed: () => Get.back(result: false),

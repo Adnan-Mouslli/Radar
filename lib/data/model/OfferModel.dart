@@ -14,7 +14,7 @@ class OfferModel {
   final CategoryModel category;
   final StoreModel store;
   final ContentModel? content;
-  final double? distance;
+   double? distance;
 
   OfferModel({
     required this.id,
@@ -32,7 +32,7 @@ class OfferModel {
     required this.category,
     required this.store,
     this.content,
-    required this.distance,
+     this.distance,
   });
 
   // Getter for main image URL
