@@ -48,7 +48,6 @@ dependencies:
   dartz:
   animate_do:
   cached_network_image:
-  better_player: ^0.0.83
   cached_video_player_fork: ^2.0.4
   connectivity_plus: ^4.0.2
   flutter_cache_manager:
