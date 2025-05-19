@@ -725,7 +725,7 @@ class OffersRadarScreen extends StatelessWidget {
   Widget _buildOffersListView() {
     return Column(
       children: [
-        _buildFilterBar(),
+        // _buildFilterBar(),
         Expanded(
           child: Obx(() {
             final nearbyOffers = controller.getFilteredOffers();
@@ -734,12 +734,22 @@ class OffersRadarScreen extends StatelessWidget {
               return _buildEmptyOffersView();
             }
 
-            return ListView.builder(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: nearbyOffers.length,
-              itemBuilder: (context, index) {
-                return _buildOfferItem(nearbyOffers[index]);
-              },
+            // Grid mejorado con dos columnas para mostrar ofertas
+            return Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: GridView.builder(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2, // Dos columnas
+                  childAspectRatio: 0.7, // Ajustado para evitar cortes
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 16,
+                ),
+                itemCount: nearbyOffers.length,
+                itemBuilder: (context, index) {
+                  return _buildOfferGridItem(nearbyOffers[index]);
+                },
+              ),
             );
           }),
         ),
@@ -747,10 +757,289 @@ class OffersRadarScreen extends StatelessWidget {
     );
   }
 
+
+  Widget _buildOfferGridItem(OfferModel offer) {
+  return InkWell(
+    onTap: () => controller.showOfferDetails(offer),
+    borderRadius: BorderRadius.circular(16),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = constraints.maxWidth;
+        
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // صورة المنتج
+              ClipRRect(
+                borderRadius: BorderRadius.only(
+                  topRight: Radius.circular(16),
+                  topLeft: Radius.circular(16),
+                ),
+                child: Stack(
+                  children: [
+                    // الصورة الرئيسية
+                    AspectRatio(
+                      aspectRatio: 1.1,
+                      child: offer.mainImage.isNotEmpty
+                          ? Image.network(
+                              offer.mainImage,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: Colors.grey[850],
+                                  child: Icon(
+                                    Icons.image_not_supported,
+                                    color: Colors.white.withOpacity(0.3),
+                                    size: 30,
+                                  ),
+                                );
+                              },
+                            )
+                          : Container(
+                              color: Colors.grey[850],
+                              child: Icon(
+                                Icons.image_not_supported,
+                                color: Colors.white.withOpacity(0.3),
+                                size: 30,
+                              ),
+                            ),
+                    ),
+                    // تدرج لتحسين وضوح العناصر
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.7),
+                            ],
+                            stops: [0.6, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    // بطاقة الخصم المحسنة - أكبر وأوضح وباللون الأحمر
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.red.shade700,
+                              Colors.red.shade800,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.shade800.withOpacity(0.5),
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                              spreadRadius: 0.5,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.local_offer,
+                              color: Colors.white,
+                              size: 10,
+                            ),
+                            SizedBox(width: 2),
+                            Text(
+                              '${offer.discount}%',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    // شعار المتجر
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.4),
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            offer.store.image,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[800],
+                                child: Icon(
+                                  Icons.store,
+                                  color: Colors.white.withOpacity(0.5),
+                                  size: 14,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // معلومات العرض - تصميم متوازن يجمع بين الجمالية والوظيفة
+              Container(
+                height: 75, // ارتفاع ثابت متوازن يوفر بعض المساحة في الأسفل
+                padding: EdgeInsets.fromLTRB(8, 6, 8, 8), // زيادة الهامش السفلي
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // عنوان العرض - الجزء الأول من المحتوى
+                    Text(
+                      offer.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: cardWidth < 150 ? 11 : 12,
+                        color: Colors.white,
+                        height: 1.2, // قيمة متوازنة لارتفاع السطر
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    
+                    SizedBox(height: 3), // مسافة صغيرة
+                    
+                    // اسم المتجر - الجزء الثاني من المحتوى
+                    Text(
+                      offer.store.name,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: cardWidth < 150 ? 9 : 10,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    
+                    // مساحة متغيرة تتكيف مع المتبقي - تضمن وجود مسافة في الأسفل
+                    Spacer(), // يضمن دفع الأسعار إلى الأسفل مع بقاء مسافة مناسبة
+                    
+                    // معلومات الأسعار - الجزء الثالث والأخير من المحتوى
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // السعر بعد الخصم داخل المستطيل
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: AppColors.primary.withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  '${offer.formattedPriceAfterDiscount}',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: cardWidth < 150 ? 10 : 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              SizedBox(width: 2),
+                              Text(
+                                'ل.س',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontSize: cardWidth < 150 ? 8 : 9,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        // السعر الأصلي المشطوب
+                        if (offer.discount > 0)
+                          Text(
+                            '${offer.formattedPrice}',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: cardWidth < 150 ? 9 : 10,
+                              fontWeight: FontWeight.bold,
+                              decoration: TextDecoration.lineThrough,
+                              decorationColor: Colors.red.shade500,
+                              decorationThickness: 2.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    ),
+  );
+}
   Widget _buildFilterBar() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16),
-      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      margin: EdgeInsets.fromLTRB(12, 12, 12, 6),
+      padding: EdgeInsets.symmetric(vertical: 10, horizontal: 14),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.3),
         borderRadius: BorderRadius.circular(12),
@@ -759,133 +1048,57 @@ class OffersRadarScreen extends StatelessWidget {
           width: 1,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(Icons.local_offer, color: AppColors.primary, size: 18),
-              SizedBox(width: 8),
-              Flexible(
-                child: Obx(() {
-                  final nearbyOffers = controller.getFilteredOffers();
-                  return Text(
-                    'العروض (${nearbyOffers.length})',
-                    style: TextStyle(
-                      fontWeight: AppFonts.bold,
-                      fontSize: 16,
-                      color: Colors.white,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  );
-                }),
+          Icon(Icons.local_offer, color: AppColors.primary, size: 18),
+          SizedBox(width: 8),
+          Obx(() {
+            final nearbyOffers = controller.getFilteredOffers();
+            return Text(
+              'العروض (${nearbyOffers.length})',
+              style: TextStyle(
+                fontWeight: AppFonts.bold,
+                fontSize: 15,
+                color: Colors.white,
               ),
-            ],
-          ),
-          SizedBox(height: 12),
-          Row(
-            children: [
-              Obx(() {
-                final selectedProvidence = controller.selectedProvidence.value;
-                final isCurrentLocation =
-                    selectedProvidence?.id == 'CURRENT_LOCATION';
-
-                return Flexible(
-                  child: InkWell(
-                    onTap: _showFilterDialog,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: AppColors.primary.withOpacity(0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isCurrentLocation
-                                ? Icons.my_location
-                                : Icons.location_city,
-                            size: 14,
-                            color: AppColors.primary,
-                          ),
-                          SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              selectedProvidence?.name ?? 'موقعي الحالي',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          SizedBox(width: 2),
-                          Icon(
-                            Icons.arrow_drop_down,
-                            size: 14,
-                            color: Colors.white.withOpacity(0.7),
-                          ),
-                        ],
-                      ),
+              overflow: TextOverflow.ellipsis,
+            );
+          }),
+          Spacer(),
+          // Botón de filtrado más compacto
+          InkWell(
+            onTap: () => _showFilterDialog(),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.primary.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.filter_list,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+                  SizedBox(width: 4),
+                  Text(
+                    'تصفية',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                );
-              }),
-              SizedBox(width: 8),
-              Obx(() {
-                return Flexible(
-                  child: InkWell(
-                    onTap: _showFilterDialog,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: controller.selectedCategoryId.value.isNotEmpty
-                              ? AppColors.primary.withOpacity(0.3)
-                              : Colors.white.withOpacity(0.1),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.category,
-                            size: 14,
-                            color:
-                                controller.selectedCategoryId.value.isNotEmpty
-                                    ? AppColors.primary
-                                    : Colors.white.withOpacity(0.7),
-                          ),
-                          SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              controller.selectedCategoryName.value,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ],
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -994,409 +1207,6 @@ class OffersRadarScreen extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildOfferItem(OfferModel offer) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 15,
-            offset: Offset(0, 8),
-          ),
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.05),
-            blurRadius: 20,
-            offset: Offset(0, 0),
-            spreadRadius: 0.5,
-          ),
-        ],
-      ),
-      child: InkWell(
-        onTap: () => controller.showOfferDetails(offer),
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          children: [
-            // الجزء العلوي مع الصورة والمعلومات
-            Container(
-              height: 140,
-              child: Row(
-                children: [
-                  // صورة العرض محسنة
-                  Container(
-                    width: 140,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.only(
-                        topRight: Radius.circular(20),
-                        bottomRight: Radius.circular(20),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: Offset(-3, 0),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.only(
-                        topRight: Radius.circular(20),
-                        bottomRight: Radius.circular(20),
-                      ),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          offer.mainImage.isNotEmpty
-                              ? Image.network(
-                                  offer.mainImage,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      color: Colors.grey[850],
-                                      child: Icon(
-                                        Icons.image_not_supported,
-                                        color: Colors.white.withOpacity(0.3),
-                                        size: 30,
-                                      ),
-                                    );
-                                  },
-                                )
-                              : Container(
-                                  color: Colors.grey[850],
-                                  child: Icon(
-                                    Icons.image_not_supported,
-                                    color: Colors.white.withOpacity(0.3),
-                                    size: 30,
-                                  ),
-                                ),
-                          // تدرج داكن للقراءة أفضل
-                          Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withOpacity(0.3),
-                                ],
-                              ),
-                            ),
-                          ),
-                          // شارة الخصم الأنيقة
-                          Positioned(
-                            top: 12,
-                            left: 0,
-                            child: Container(
-                              padding: EdgeInsets.only(
-                                left: 16,
-                                right: 12,
-                                top: 6,
-                                bottom: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.red.shade600,
-                                    Colors.red.shade700,
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.only(
-                                  topRight: Radius.circular(20),
-                                  bottomRight: Radius.circular(20),
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.red.withOpacity(0.3),
-                                    blurRadius: 6,
-                                    offset: Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: Text(
-                                '${offer.discount}%',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // معلومات العرض
-                  Expanded(
-                    child: Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // الفئة - أنيقة ومحسنة
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 5),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      AppColors.primary.withOpacity(0.2),
-                                      AppColors.primary.withOpacity(0.1),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(15),
-                                  border: Border.all(
-                                    color: AppColors.primary.withOpacity(0.3),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      _getCategoryIcon(offer.category.name),
-                                      size: 15,
-                                      color: AppColors.primary,
-                                    ),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      offer.category.name,
-                                      style: TextStyle(
-                                        color: AppColors.primary,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(height: 10),
-                              // عنوان العرض
-                              Text(
-                                offer.title,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 17,
-                                  color: Colors.white,
-                                  height: 1.2,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              SizedBox(height: 6),
-                              // وصف العرض
-                              Text(
-                                offer.description,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.white.withOpacity(0.75),
-                                  height: 1.3,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // الجزء السفلي - معلومات المتجر والسعر
-            Container(
-              padding: EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.black.withOpacity(0.2),
-                    Colors.black.withOpacity(0.15),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-                border: Border(
-                  top: BorderSide(
-                    color: Colors.white.withOpacity(0.08),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Column(
-                children: [
-                  // معلومات المتجر في سطر منفصل
-                  Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [
-                              AppColors.primary.withOpacity(0.3),
-                              AppColors.primary.withOpacity(0.1),
-                            ],
-                          ),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(15),
-                          child: Image.network(
-                            offer.store.image,
-                            width: 28,
-                            height: 28,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[800],
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.store,
-                                  color: Colors.white.withOpacity(0.5),
-                                  size: 16,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          offer.store.name,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            height: 1.2,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 12),
-                  // السعر والمسافة في سطر منفصل
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // المسافة - إذا كانت متوفرة
-                      Obx(() {
-                        final shouldShowDistance =
-                            controller.userLocation.value != null &&
-                                offer.distance != null;
-
-                        if (shouldShowDistance) {
-                          return Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.1),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.place,
-                                  size: 14,
-                                  color: AppColors.primary,
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  controller.formatDistance(offer.distance),
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.8),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        } else {
-                          return SizedBox();
-                        }
-                      }),
-                      // السعر
-                      Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppColors.primary,
-                              AppColors.primary.withOpacity(0.8),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '${offer.formattedPriceAfterDiscount}',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'ل.س',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1864,7 +1674,7 @@ class OffersRadarScreen extends StatelessWidget {
                             Icon(Icons.check, size: 18),
                             SizedBox(width: 8),
                             Text(
-                              'تطبيق الفلتر',
+                              'تطبيق وبجث',
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,

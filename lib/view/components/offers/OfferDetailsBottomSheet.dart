@@ -429,12 +429,17 @@ class OfferDetailsBottomSheet extends StatelessWidget {
                   color: Colors.white.withOpacity(0.8), // لون أوضح للنص
                 ),
               ),
+              // استخدام خاصية decoration للشطب بدلاً من Stack
               Text(
                 '${offer.formattedPrice} ليرة سورية',
                 style: TextStyle(
                   fontSize: 14,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
                   decoration: TextDecoration.lineThrough,
-                  color: Colors.white.withOpacity(0.8), // لون أوضح للنص
+                  decorationColor: Colors.red[500], // لون الشطب أحمر واضح
+                  decorationThickness: 2.5, // خط شطب سميك
+                  decorationStyle: TextDecorationStyle.solid, // نمط خط الشطب
                 ),
               ),
             ],

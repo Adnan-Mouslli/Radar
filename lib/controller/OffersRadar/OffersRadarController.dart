@@ -106,6 +106,8 @@ class OffersRadarController extends GetxController
 
     // تحديث واجهة المستخدم
     update();
+
+    scanForOffers();
   }
 
   // تعديل دالة changeRadius لاستخدام المتغير المؤقت
@@ -221,10 +223,11 @@ class OffersRadarController extends GetxController
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
       if (serviceEnabled) {
-        // Get permission and location only
-        final hasPermission = await _locationService.requestPermission();
+        // استخدام الدالة المحسنة - بدون عرض ديالوج
+        final hasPermission =
+            await _locationService.requestPermission(showSettingsDialog: false);
         if (hasPermission) {
-          getUserLocation(skipAutoScan: true); // تمرير خيار تخطي البحث التلقائي
+          getUserLocation(skipAutoScan: true);
         }
       }
     } catch (e) {
@@ -260,50 +263,24 @@ class OffersRadarController extends GetxController
     try {
       isLoading.value = true;
 
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      // استخدام الدالة المحسنة مع عرض ديالوج
+      final hasPermission = await _locationService.requestPermission();
 
-      if (!serviceEnabled) {
-        // Use Completer to get result from CustomDialog
-        final completer = Completer<bool>();
-
-        // Show custom dialog to enable location service
-        CustomDialog.show(
-          title: 'خدمة الموقع معطلة',
-          message: 'يرجى تفعيل GPS لتتمكن من استخدام ميزات تحديد الموقع',
-          icon: Icons.location_off,
-          iconColor: AppColors.primary,
-          confirmButtonColor: AppColors.primary,
-          cancelText: 'إلغاء',
-          confirmText: 'فتح الإعدادات',
-          onCancel: () {
-            completer.complete(false);
-          },
-          onConfirm: () async {
-            completer.complete(true);
-          },
-        );
-
-        bool shouldOpenSettings = await completer.future;
-
-        if (shouldOpenSettings) {
-          await Geolocator.openLocationSettings();
-
-          // Check again after settings opened
-          serviceEnabled = await Geolocator.isLocationServiceEnabled();
-          if (serviceEnabled) {
-            // Now get permission and location
-            getUserLocation();
-            return true;
-          }
-        }
+      if (hasPermission) {
+        // إذا تم منح الإذن، نحصل على الموقع
+        getUserLocation();
+        return true;
+      } else {
+        // لم يتم منح الإذن - لا نحتاج لعرض رسالة هنا لأن الدالة المحسنة
+        // ستعرض رسائل مناسبة
         return false;
       }
-
-      // If service is already enabled, get permission and location
-      getUserLocation();
-      return true;
     } catch (e) {
       print('Error checking location service: $e');
+      CustomToast.showErrorToast(
+        message: 'حدث خطأ أثناء التحقق من خدمة الموقع',
+        duration: Duration(seconds: 3),
+      );
       return false;
     } finally {
       isLoading.value = false;
@@ -344,40 +321,30 @@ class OffersRadarController extends GetxController
     try {
       isLoading.value = true;
 
-      // Request location permission
-      final hasPermission = await _locationService.requestPermission();
+      // استخدام الدالة المحسنة بدون عرض ديالوج
+      final location = await _locationService.getCurrentLocation(
+          requestPermissionIfNeeded: false);
 
-      if (hasPermission) {
-        final location = await _locationService.getCurrentLocation();
+      if (location != null) {
+        userLocation.value = location;
 
-        if (location != null) {
-          userLocation.value = location;
-
-          // تعديل الشرط هنا لتخطي البحث التلقائي عند فتح الواجهة
-          if (!hasCompletedScan.value &&
-              discoveredOffers.isEmpty &&
-              !skipAutoScan) {
-            scanForOffers();
-          }
-        } else {
-          // Use default location (Riyadh) if user location is not available
-          CustomToast.showWarningToast(
-              message:
-                  'تعذر الحصول على موقعك الحالي، سيتم استخدام موقعك عند فتح خرائط جوجل',
-              duration: Duration(seconds: 3));
+        // تعديل الشرط هنا لتخطي البحث التلقائي عند فتح الواجهة
+        if (!hasCompletedScan.value &&
+            discoveredOffers.isEmpty &&
+            !skipAutoScan) {
+          scanForOffers();
         }
       } else {
+        // Use CustomToast instead of defaults
         CustomToast.showWarningToast(
-            message: 'يرجى السماح بالوصول إلى موقعك للحصول على أفضل تجربة',
+            message:
+                'تعذر الحصول على موقعك الحالي، سيتم استخدام موقعك عند فتح خرائط جوجل',
             duration: Duration(seconds: 3));
       }
     } catch (e) {
-      Get.snackbar(
-        'خطأ',
-        'فشل في تحديد موقعك',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+      // استخدام CustomDialog بدلاً من Get.snackbar
+      CustomToast.showErrorToast(
+        message: 'فشل في تحديد موقعك',
         duration: Duration(seconds: 3),
       );
     } finally {
@@ -455,7 +422,6 @@ class OffersRadarController extends GetxController
     try {
       print(
           'Refreshing offers with new location: ${userLocation.value!.latitude}, ${userLocation.value!.longitude}');
-
       // تحديث المسافات للعروض الموجودة
       for (var offer in discoveredOffers) {
         offer.distance = calculateDistance(
@@ -573,13 +539,14 @@ class OffersRadarController extends GetxController
       // سجل التصحيح
       print('Scanning with filters: $filters');
 
-      // تأخير لإظهار تجربة البحث
-      await Future.delayed(Duration(milliseconds: 2500));
-      hasFoundOffers.value = true;
+      // تأخير قصير لإظهار تجربة البحث - تم تقليله إلى 1000 مللي ثانية فقط (ثانية واحدة)
       await Future.delayed(Duration(milliseconds: 1000));
 
       // جلب العروض باستخدام الفلتر
       final offers = await _offersService.getOffers(filters);
+
+      // تعيين العثور على عروض بعد الحصول عليها مباشرة
+      hasFoundOffers.value = true;
 
       // سجل التصحيح
       print('Found ${offers.length} offers');
@@ -604,22 +571,22 @@ class OffersRadarController extends GetxController
       // تحديث العروض المكتشفة
       discoveredOffers.assignAll(offers);
 
-      // إظهار وضع الرادار لعرض النتائج
+      // إظهار وضع الرادار لعرض النتائج - بدون تأخير
       showRadarMode.value = true;
       hasCompletedScan.value = true;
       isScanning.value = false;
+
+      // إظهار رسالة النجاح فوراً
+      showSuccessMessage.value = true;
 
       // إلغاء أي مؤقت موجود
       if (_radarDisplayTimer != null) {
         _radarDisplayTimer!.cancel();
       }
 
-      // تأخير لإظهار رسالة النتيجة
-      Future.delayed(Duration(milliseconds: 1500), () {
-        showSuccessMessage.value = true;
-        _radarDisplayTimer = Timer(Duration(seconds: 3), () {
-          isShowingRadarAnimation.value = false;
-        });
+      // تأخير قصير لإخفاء الرادار بعد عرض النتائج - ثانيتان فقط
+      _radarDisplayTimer = Timer(Duration(seconds: 2), () {
+        isShowingRadarAnimation.value = false;
       });
     } catch (e) {
       print('Error scanning for offers: ${e.toString()}');
@@ -790,39 +757,18 @@ class OffersRadarController extends GetxController
 
   // Show location permission dialog
   void showLocationPermissionDialog() {
-    CustomDialog.showConfirmation(
-      title: 'طلب إذن الموقع',
-      message:
-          'يحتاج التطبيق إلى الوصول إلى موقعك لعرض العروض القريبة منك. هل توافق على منح الإذن؟',
-      onConfirm: () async {
-        // Check location service first
-        final serviceEnabled = await checkAndRequestLocationService();
-
-        if (serviceEnabled) {
-          final hasPermission = await _locationService.requestPermission();
-          if (hasPermission) {
-            getUserLocation();
-            // Don't start scan immediately, let user see their location first
-          } else {
-            Get.snackbar(
-              'تنبيه',
-              'لا يمكن البحث عن العروض بدون إذن الموقع',
-              snackPosition: SnackPosition.BOTTOM,
-              duration: Duration(seconds: 3),
-            );
-          }
-        }
-      },
-      onCancel: () {
-        Get.snackbar(
-          'تنبيه',
-          'لن تتمكن من رؤية العروض القريبة بدون إذن الموقع',
-          snackPosition: SnackPosition.BOTTOM,
+    // استخدام الدالة المحسنة مباشرة بدلاً من العرض اليدوي للديالوج
+    checkAndRequestLocationService().then((hasPermission) {
+      if (hasPermission) {
+        // تم منح الإذن بنجاح، يمكننا المتابعة
+        print('تم منح إذن الموقع بنجاح');
+      } else {
+        // استخدام CustomToast بدلاً من Get.snackbar
+        CustomToast.showWarningToast(
+          message: 'لن تتمكن من رؤية العروض القريبة بدون إذن الموقع',
           duration: Duration(seconds: 3),
         );
-      },
-      cancelText: 'لا',
-      confirmText: 'نعم',
-    );
+      }
+    });
   }
 }

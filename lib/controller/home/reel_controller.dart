@@ -1449,18 +1449,36 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
     }
   }
 
-  // المشاركة عبر واتساب
+  // مشاركة رابط الريل عبر واتساب
   Future<void> _shareToWhatsApp(Reel reel) async {
     try {
-      final reelIndex = reels.indexWhere((r) => r.id == reel.id);
-      if (reelIndex != -1) {
-        markAsWhatsappClicked(reelIndex);
+      // إنشاء رابط للمشاركة
+      String shareText = "شاهد هذا المحتوى المميز من رادار\n";
+      String shareUrl = _generateDeepLink(reel);
+
+      // لاحظ الفرق: هنا نستخدم "نص" لمشاركة الرابط مع جهة اتصال، وليس لفتح محادثة مع رقم معين
+      final whatsappShareUrl =
+          "whatsapp://send?text=${Uri.encodeComponent('$shareText\n$shareUrl')}";
+
+      // محاولة فتح واتساب للمشاركة
+      if (await canLaunch(whatsappShareUrl)) {
+        await launch(whatsappShareUrl);
       } else {
-        throw Exception("لم يتم العثور على الريل في القائمة");
+        // محاولة بديلة باستخدام الرابط العام
+        final webWhatsappShare =
+            "https://wa.me/?text=${Uri.encodeComponent('$shareText\n$shareUrl')}";
+        if (await canLaunch(webWhatsappShare)) {
+          await launch(webWhatsappShare);
+        } else {
+          throw Exception("تعذر فتح واتساب. يرجى التأكد من تثبيت التطبيق.");
+        }
       }
     } catch (e) {
       print("خطأ أثناء المشاركة على واتساب: $e");
-      _showErrorSnackbar('مشاركة واتساب', e.toString());
+      CustomToast.showErrorToast(
+        message: 'تعذر مشاركة المحتوى عبر واتساب',
+        duration: Duration(seconds: 2),
+      );
     }
   }
 
