@@ -8,6 +8,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:radar/view/pages/home/NetworkErrorSkeleton.dart';
 import 'package:radar/view/pages/interests/InterestsManagementScreen.dart';
 import 'package:radar/view/pages/skeletons_/HomeScreenSkeleton.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 
 class HomeScreen extends StatelessWidget {
   HomeScreen({Key? key}) : super(key: key);
@@ -24,6 +27,10 @@ class HomeScreen extends StatelessWidget {
       AppColors.primaryLight.withOpacity(0.4); // أخف للتباين اللطيف
   final Color accentColor =
       AppColors.primary.withOpacity(0.85); // اللون الأساسي بشفافية لتخفيف الحدة
+
+  // إضافة متغيرات جديدة للاتصال
+  final String phoneRadar =
+      "+963941325008"; // يجب جلب هذه القيمة من التخزين المحلي
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +114,16 @@ class HomeScreen extends StatelessWidget {
             // محتوى الاهتمامات
             SliverToBoxAdapter(
               child: _buildInterestsSection(),
+            ),
+
+            // قسم تواصل معنا (تم إضافته)
+            SliverToBoxAdapter(
+              child: _buildContactUsSection(),
+            ),
+
+            // قسم الأسئلة الشائعة (تم إضافته)
+            SliverToBoxAdapter(
+              child: _buildFAQSection(),
             ),
 
             // زر تسجيل الخروج
@@ -601,6 +618,375 @@ class HomeScreen extends StatelessWidget {
             }).toList(),
           ),
         ],
+      ),
+    );
+  }
+
+  // إضافة قسم تواصل معنا (معاد تصميمه ليتناسب مع واجهة البروفايل)
+  Widget _buildContactUsSection() {
+    return Container(
+      margin: EdgeInsets.fromLTRB(16, 16, 16, 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [
+            AppColors.primary.withOpacity(0.7),
+            AppColors.primaryLight.withOpacity(0.5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.2),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          )
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          children: [
+            // عناصر زخرفية في الخلفية
+            Positioned(
+              right: -20,
+              top: -20,
+              child: Container(
+                height: 100,
+                width: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.05),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -30,
+              bottom: -30,
+              child: Container(
+                height: 120,
+                width: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.05),
+                ),
+              ),
+            ),
+
+            // المحتوى الرئيسي
+            Padding(
+              padding: EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // عنوان القسم
+                  Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.support_agent,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'خدمة العملاء',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: AppFonts.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // معلومات الاتصال
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'نحن هنا لمساعدتك',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: AppFonts.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'إذا كان لديك أي استفسار أو مشكلة في التطبيق، يمكنك التواصل معنا من خلال:',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+
+                        // أزرار الاتصال
+                        Row(
+                          children: [
+                            // زر الاتصال
+                            Expanded(
+                              child: _buildContactButton(
+                                onTap: () async {
+                                  final String cleanPhone = phoneRadar
+                                      .replaceAll('+', '')
+                                      .replaceAll('-', '')
+                                      .replaceAll(' ', '')
+                                      .trim();
+
+                                  try {
+                                    final String telUri = 'tel:$cleanPhone';
+                                    if (await canLaunch(telUri)) {
+                                      await launch(telUri);
+                                    } else {
+                                      _showPhoneNumberSnackbar(cleanPhone);
+                                    }
+                                  } catch (e) {
+                                    _showPhoneNumberSnackbar(cleanPhone);
+                                  }
+                                },
+                                title: 'اتصل بنا',
+                                icon: Icons.phone,
+                                color: Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // زر واتساب
+                            Expanded(
+                              child: _buildContactButton(
+                                onTap: () async {
+                                  final String cleanPhone = phoneRadar
+                                      .replaceAll('+', '')
+                                      .replaceAll('-', '')
+                                      .replaceAll(' ', '')
+                                      .trim();
+
+                                  try {
+                                    final String whatsappUrl =
+                                        'https://wa.me/$cleanPhone?text=مرحباً، أود الاستفسار عن تطبيق Radar';
+                                    if (await canLaunch(whatsappUrl)) {
+                                      await launch(whatsappUrl);
+                                    } else {
+                                      _showPhoneNumberSnackbar(cleanPhone);
+                                    }
+                                  } catch (e) {
+                                    _showPhoneNumberSnackbar(cleanPhone);
+                                  }
+                                },
+                                title: 'واتساب',
+                                icon: FontAwesomeIcons.whatsapp,
+                                color: Color(0xFF25D366),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContactButton({
+    required VoidCallback onTap,
+    required IconData icon,
+    required String title,
+    required Color color,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.8),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.3),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: AppFonts.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // طريقة عرض رسالة مع الرقم ونسخه
+  void _showPhoneNumberSnackbar(String phoneNumber) {
+    Get.snackbar(
+      'رقم الاتصال',
+      'يمكنك الاتصال على الرقم: $phoneNumber',
+      snackPosition: SnackPosition.BOTTOM,
+      duration: Duration(seconds: 5),
+      backgroundColor: Colors.black.withOpacity(0.7),
+      colorText: Colors.white,
+      mainButton: TextButton(
+        onPressed: () async {
+          await Clipboard.setData(ClipboardData(text: phoneNumber));
+          Get.snackbar(
+            'تم النسخ',
+            'تم نسخ الرقم إلى الحافظة',
+            snackPosition: SnackPosition.BOTTOM,
+            duration: Duration(seconds: 2),
+          );
+        },
+        child: Text(
+          'نسخ',
+          style: TextStyle(color: Colors.white),
+        ),
+      ),
+    );
+  }
+
+  // إضافة قسم الأسئلة الشائعة
+  Widget _buildFAQSection() {
+    return Container(
+      margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
+      decoration: BoxDecoration(
+        color: cardBgColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          )
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.help_outline,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'الأسئلة الشائعة',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: AppFonts.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // قائمة الأسئلة الشائعة
+            _buildFAQItem('كيف أعرف أنني وجدت الجوهرة؟',
+                'ستظهر رسالة تهنئة على الشاشة عند مشاهدة الفيديو الذي يحتوي على الجوهرة، وسيتم إضافة النقاط لحسابك فوراً.'),
+            _buildFAQItem('هل يمكنني الفوز بأكثر من جوهرة؟',
+                'نعم، يمكنك الفوز بجوهرة كل أسبوع إذا كنت أول من يشاهد الفيديو الذي تظهر فيه.'),
+            _buildFAQItem('ماذا يمكنني أن أفعل بالنقاط؟',
+                'يمكنك استبدال النقاط بجوائز وعروض حصرية في قسم "المتجر".'),
+            _buildFAQItem('متى تبدأ فرصة الجوهرة الجديدة؟',
+                'تبدأ فرصة جديدة كل يوم أحد في تمام الساعة 12:00 صباحاً.'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFAQItem(String question, String answer) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ),
+      ),
+      child: Theme(
+        data: ThemeData(
+          dividerColor: Colors.transparent,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+        ),
+        child: ExpansionTile(
+          title: Text(
+            question,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 14,
+              fontWeight: AppFonts.medium,
+            ),
+          ),
+          iconColor: AppColors.primary,
+          collapsedIconColor: Colors.white.withOpacity(0.7),
+          childrenPadding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            Text(
+              answer,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

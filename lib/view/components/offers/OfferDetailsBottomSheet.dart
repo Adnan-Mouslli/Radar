@@ -431,7 +431,7 @@ class OfferDetailsBottomSheet extends StatelessWidget {
               ),
               // استخدام خاصية decoration للشطب بدلاً من Stack
               Text(
-                '${offer.formattedPrice} ليرة سورية',
+                '${offer.formattedPrice} ${controller.getCurrencySymbol(offer.priceType)}',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.white,
@@ -469,7 +469,7 @@ class OfferDetailsBottomSheet extends StatelessWidget {
                 ],
               ),
               Text(
-                '${offer.discountAmount.toStringAsFixed(0)} ليرة سورية (${offer.discount}%)',
+                '${offer.discountAmount.toStringAsFixed(0)} ${controller.getCurrencySymbol(offer.priceType)} (${offer.discount}%)',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.primary,
@@ -501,7 +501,7 @@ class OfferDetailsBottomSheet extends StatelessWidget {
                   border: Border.all(color: Colors.green.withOpacity(0.3)),
                 ),
                 child: Text(
-                  '${offer.formattedPriceAfterDiscount} ليرة سورية',
+                  '${offer.formattedPriceAfterDiscount} ${controller.getCurrencySymbol(offer.priceType)}',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: AppFonts.bold,
@@ -605,20 +605,46 @@ class OfferDetailsBottomSheet extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 16,
-                    color: Colors.white.withOpacity(0.7), // لون أوضح للأيقونة
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.play_circle_fill,
+                        size: 16,
+                        color: Colors.greenAccent.withOpacity(0.8),
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'يبدأ: ${_formatDate(offer.startDate)}',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.85),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(width: 8),
-                  Text(
-                    'تاريخ بدء العرض: ${_formatDate(offer.startDate)}',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8), // لون أوضح للنص
-                      fontSize: 12,
-                    ),
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.stop_circle,
+                        size: 16,
+                        color: Colors.redAccent.withOpacity(0.8),
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        offer.endDate != null
+                            ? 'ينتهي: ${_formatDate(offer.endDate!)}'
+                            : 'دائم',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.75),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

@@ -740,8 +740,8 @@ class OffersRadarScreen extends StatelessWidget {
               child: GridView.builder(
                 padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2, // Dos columnas
-                  childAspectRatio: 0.7, // Ajustado para evitar cortes
+                  crossAxisCount: 2,
+                  childAspectRatio: 0.8, // تحسين النسبة لتجنب المساحات الفارغة
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 16,
                 ),
@@ -757,15 +757,13 @@ class OffersRadarScreen extends StatelessWidget {
     );
   }
 
-
   Widget _buildOfferGridItem(OfferModel offer) {
-  return InkWell(
-    onTap: () => controller.showOfferDetails(offer),
-    borderRadius: BorderRadius.circular(16),
-    child: LayoutBuilder(
-      builder: (context, constraints) {
+    return InkWell(
+      onTap: () => controller.showOfferDetails(offer),
+      borderRadius: BorderRadius.circular(16),
+      child: LayoutBuilder(builder: (context, constraints) {
         final cardWidth = constraints.maxWidth;
-        
+
         return Container(
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
@@ -786,92 +784,86 @@ class OffersRadarScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // صورة المنتج
-              ClipRRect(
-                borderRadius: BorderRadius.only(
-                  topRight: Radius.circular(16),
-                  topLeft: Radius.circular(16),
-                ),
-                child: Stack(
-                  children: [
-                    // الصورة الرئيسية
-                    AspectRatio(
-                      aspectRatio: 1.1,
-                      child: offer.mainImage.isNotEmpty
-                          ? Image.network(
-                              offer.mainImage,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: Colors.grey[850],
-                                  child: Icon(
-                                    Icons.image_not_supported,
-                                    color: Colors.white.withOpacity(0.3),
-                                    size: 30,
-                                  ),
-                                );
-                              },
-                            )
-                          : Container(
-                              color: Colors.grey[850],
-                              child: Icon(
-                                Icons.image_not_supported,
-                                color: Colors.white.withOpacity(0.3),
-                                size: 30,
+              Expanded(
+                flex: 6, // تخصيص 60% من المساحة للصورة
+                child: ClipRRect(
+                  borderRadius: BorderRadius.only(
+                    topRight: Radius.circular(16),
+                    topLeft: Radius.circular(16),
+                  ),
+                  child: Stack(
+                    children: [
+                      // الصورة الرئيسية
+                      Positioned.fill(
+                        child: offer.mainImage.isNotEmpty
+                            ? Image.network(
+                                offer.mainImage,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: Colors.grey[850],
+                                    child: Icon(
+                                      Icons.image_not_supported,
+                                      color: Colors.white.withOpacity(0.3),
+                                      size: 30,
+                                    ),
+                                  );
+                                },
+                              )
+                            : Container(
+                                color: Colors.grey[850],
+                                child: Icon(
+                                  Icons.image_not_supported,
+                                  color: Colors.white.withOpacity(0.3),
+                                  size: 30,
+                                ),
                               ),
+                      ),
+
+                      // تدرج لتحسين وضوح العناصر
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withOpacity(0.6),
+                              ],
+                              stops: [0.7, 1.0],
                             ),
-                    ),
-                    // تدرج لتحسين وضوح العناصر
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.7),
-                            ],
-                            stops: [0.6, 1.0],
                           ),
                         ),
                       ),
-                    ),
-                    
-                    // بطاقة الخصم المحسنة - أكبر وأوضح وباللون الأحمر
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.red.shade700,
-                              Colors.red.shade800,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.red.shade800.withOpacity(0.5),
-                              blurRadius: 4,
-                              offset: Offset(0, 2),
-                              spreadRadius: 0.5,
+
+                      // بطاقة الخصم
+                      if (offer.discount > 0)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.red.shade600,
+                                  Colors.red.shade700,
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.red.shade700.withOpacity(0.4),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.local_offer,
-                              color: Colors.white,
-                              size: 10,
-                            ),
-                            SizedBox(width: 2),
-                            Text(
+                            child: Text(
                               '${offer.discount}%',
                               style: TextStyle(
                                 color: Colors.white,
@@ -879,151 +871,140 @@ class OffersRadarScreen extends StatelessWidget {
                                 fontSize: 11,
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    // شعار المتجر
-                    Positioned(
-                      bottom: 8,
-                      right: 8,
-                      child: Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white,
-                            width: 1.5,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.4),
-                              blurRadius: 4,
-                              offset: Offset(0, 2),
+                        ),
+
+                      // شعار المتجر
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 1.5,
                             ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            offer.store.image,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey[800],
-                                child: Icon(
-                                  Icons.store,
-                                  color: Colors.white.withOpacity(0.5),
-                                  size: 14,
-                                ),
-                              );
-                            },
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.4),
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              offer.store.image,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: Colors.grey[800],
+                                  child: Icon(
+                                    Icons.store,
+                                    color: Colors.white.withOpacity(0.5),
+                                    size: 14,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
 
-              // معلومات العرض - تصميم متوازن يجمع بين الجمالية والوظيفة
+              // معلومات العرض - تصميم جديد ومحسن
               Container(
-                height: 75, // ارتفاع ثابت متوازن يوفر بعض المساحة في الأسفل
-                padding: EdgeInsets.fromLTRB(8, 6, 8, 8), // زيادة الهامش السفلي
+                padding: EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // عنوان العرض - الجزء الأول من المحتوى
+                    // عنوان العرض
                     Text(
                       offer.title,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: cardWidth < 150 ? 11 : 12,
+                        fontSize: cardWidth < 150 ? 12 : 14,
                         color: Colors.white,
-                        height: 1.2, // قيمة متوازنة لارتفاع السطر
+                        height: 1.3,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    
-                    SizedBox(height: 3), // مسافة صغيرة
-                    
-                    // اسم المتجر - الجزء الثاني من المحتوى
+
+                    SizedBox(height: 6),
+
+                    // اسم المتجر
                     Text(
                       offer.store.name,
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.7),
-                        fontSize: cardWidth < 150 ? 9 : 10,
+                        fontSize: cardWidth < 150 ? 10 : 11,
                         fontWeight: FontWeight.w500,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    
-                    // مساحة متغيرة تتكيف مع المتبقي - تضمن وجود مسافة في الأسفل
-                    Spacer(), // يضمن دفع الأسعار إلى الأسفل مع بقاء مسافة مناسبة
-                    
-                    // معلومات الأسعار - الجزء الثالث والأخير من المحتوى
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
+
+                    SizedBox(height: 8),
+
+                    // الأسعار - تصميم نظيف ومباشر
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        // السعر بعد الخصم داخل المستطيل
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: AppColors.primary.withOpacity(0.3),
-                              width: 1,
-                            ),
+                        // السعر الحالي
+                        Text(
+                          '${offer.formattedPriceAfterDiscount} ${controller.getCurrencySymbol(offer.priceType)}',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: cardWidth < 150 ? 13 : 15,
+                            fontWeight: FontWeight.bold,
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+
+                        // السعر الأصلي والتوفير (إذا وجد خصم)
+                        if (offer.discount > 0) ...[
+                          SizedBox(height: 4),
+                          Row(
                             children: [
-                              Flexible(
-                                child: Text(
-                                  '${offer.formattedPriceAfterDiscount}',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: cardWidth < 150 ? 10 : 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                              // السعر الأصلي
+                              Text(
+                                '${offer.formattedPrice} ${controller.getCurrencySymbol(offer.priceType)}',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.5),
+                                  fontSize: cardWidth < 150 ? 10 : 11,
+                                  decoration: TextDecoration.lineThrough,
+                                  decorationColor:
+                                      Colors.redAccent.withOpacity(0.8),
+                                  decorationThickness: 1.5,
                                 ),
                               ),
-                              SizedBox(width: 2),
-                              Text(
-                                'ل.س',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.8),
-                                  fontSize: cardWidth < 150 ? 8 : 9,
-                                  fontWeight: FontWeight.w500,
+
+                              SizedBox(width: 8),
+
+                              // نص التوفير
+                              Expanded(
+                                child: Text(
+                                  'وفر ${((offer.price - offer.priceAfterDiscount)).toStringAsFixed(0)}',
+                                  style: TextStyle(
+                                    color: Colors.greenAccent,
+                                    fontSize: cardWidth < 150 ? 8 : 9,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        
-                        // السعر الأصلي المشطوب
-                        if (offer.discount > 0)
-                          Text(
-                            '${offer.formattedPrice}',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: cardWidth < 150 ? 9 : 10,
-                              fontWeight: FontWeight.bold,
-                              decoration: TextDecoration.lineThrough,
-                              decorationColor: Colors.red.shade500,
-                              decorationThickness: 2.5,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -1032,10 +1013,10 @@ class OffersRadarScreen extends StatelessWidget {
             ],
           ),
         );
-      }
-    ),
-  );
-}
+      }),
+    );
+  }
+
   Widget _buildFilterBar() {
     return Container(
       margin: EdgeInsets.fromLTRB(12, 12, 12, 6),

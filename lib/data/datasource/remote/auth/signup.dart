@@ -18,6 +18,7 @@ class SignUpData {
     File? profilePhoto, // جعل الصورة اختيارية
   }) async {
     try {
+      print(AppLink.signUp);
       if (profilePhoto != null) {
         var request = https.MultipartRequest(
           'POST',

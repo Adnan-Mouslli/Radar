@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:radar/controller/profile/ProfileController.dart';
-import 'package:radar/core/services/RewardsService.dart';
+import 'package:radar/core/constant/Link.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:radar/core/services/RewardsService.dart';
+import 'package:radar/core/services/services.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as https;
+import 'package:radar/controller/profile/ProfileController.dart';
+import 'package:radar/view/components/ui/CustomDialog.dart';
 import 'package:radar/view/components/ui/CustomToast.dart';
-import 'package:radar/view/components/ui/CustomDialog.dart'; // Add this import
-import 'package:url_launcher/url_launcher.dart';
+import 'package:radar/view/pages/home/QrScannerScreen.dart';
+
+
 
 // نموذج بيانات المكافأة
 class Reward {
@@ -156,35 +162,85 @@ class Category {
   }
 }
 
+
 class MarketController extends GetxController {
   final ProfileController profileController = Get.find<ProfileController>();
   final RewardsService _rewardsService = RewardsService();
+  final MyServices _services = Get.find<MyServices>();
 
+  // حالة تحميل متجر النقاط
   final RxBool isLoading = false.obs;
   final RxBool hasError = false.obs;
   final RxString errorMessage = ''.obs;
   final RxList<Category> categories = <Category>[].obs;
-
+  
+  // حالة تحميل المتصدرين
+  final RxBool isLoadingLeaders = false.obs;
+  final RxBool hasLeadersError = false.obs;
+  final RxString leadersErrorMessage = ''.obs;
+  final RxList<Map<String, dynamic>> topWinners = <Map<String, dynamic>>[].obs;
+  
+  // معلومات الجوهرة الأسبوعية
+  final RxString weeklyJewelValue = "500".obs;
+  final int topWinnersCount = 10; // عدد المتصدرين المراد عرضهم
+  
+  // بيانات التبويب
+  final RxInt activeTabIndex = 0.obs;
+  late TabController tabController;
+  
   @override
   void onInit() {
     super.onInit();
+    // تهيئة قيمة الجوهرة من المخزن المحلي
+    weeklyJewelValue.value = _services.getData("WeeklyJewelValue") ?? "500";
+    
+    // تحميل البيانات
     loadRewards();
+    loadTopWinners();
     profileController.update();
   }
+  
+  // دالة لتهيئة وحدة تحكم التبويب
+  void initTabController(TabController controller) {
+    tabController = controller;
+    tabController.addListener(_handleTabChange);
+  }
+  
+  // الاستماع لتغييرات التبويب
+  void _handleTabChange() {
+    if (!tabController.indexIsChanging) {
+      activeTabIndex.value = tabController.index;
+      
+      // إعادة تحميل البيانات عند الانتقال للتبويب إذا كانت فارغة
+      if (activeTabIndex.value == 0 && categories.isEmpty && !isLoading.value) {
+        loadRewards();
+      } else if (activeTabIndex.value == 2 && topWinners.isEmpty && !isLoadingLeaders.value) {
+        loadTopWinners();
+      }
+    }
+  }
+  
+  // تغيير التبويب النشط
+  void changeTab(int index) {
+    if (tabController.index != index) {
+      tabController.animateTo(index);
+    }
+  }
 
-  void loadRewards() {
+  // تحميل المكافآت وفئاتها
+  Future<void> loadRewards() async {
     isLoading.value = true;
     hasError.value = false;
 
-    _rewardsService.getRewardsWithCategories().then((data) {
+    try {
+      final data = await _rewardsService.getRewardsWithCategories();
       categories.value = data
           .map((item) => Category.fromJson(item))
           .where((category) => category.isActive && category.rewards.isNotEmpty)
           .toList();
-
-      isLoading.value = false;
-    }).catchError((e) {
+    } catch (e) {
       hasError.value = true;
+      
       // تحسين رسائل الخطأ للمستخدم
       if (e.toString().contains('SocketException') ||
           e.toString().contains('Connection refused') ||
@@ -196,21 +252,90 @@ class MarketController extends GetxController {
         errorMessage.value = 'حدث خطأ أثناء تحميل البيانات';
       }
       print("خطأ في جلب بيانات المتجر: $e");
-
+    } finally {
       isLoading.value = false;
-    });
+    }
   }
 
+  // تحميل قائمة المتصدرين
+  Future<void> loadTopWinners() async {
+    try {
+      isLoadingLeaders.value = true;
+      hasLeadersError.value = false;
+
+      final url = Uri.parse('${AppLink.server}/api/users/top-awarded?limit=$topWinnersCount');
+      final response = await https.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer ${_services.getToken()}',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 30), onTimeout: () {
+        throw Exception('Connection timeout');
+      });
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          topWinners.value = List<Map<String, dynamic>>.from(data['data']);
+        } else {
+          hasLeadersError.value = true;
+          leadersErrorMessage.value = 'لا توجد بيانات متاحة';
+        }
+      } else {
+        hasLeadersError.value = true;
+        leadersErrorMessage.value = 'حدث خطأ في استرجاع البيانات';
+      }
+    } catch (e) {
+      hasLeadersError.value = true;
+      leadersErrorMessage.value = e.toString().contains('timeout') ||
+              e.toString().contains('Connection')
+          ? 'لا يمكن الاتصال بالإنترنت'
+          : 'حدث خطأ في تحميل البيانات';
+      print('Error fetching top winners: $e');
+    } finally {
+      isLoadingLeaders.value = false;
+    }
+  }
+  
+  // تحديث قيمة الجوهرة الأسبوعية
+  Future<void> refreshWeeklyJewelValue() async {
+    try {
+      final response = await https.get(
+        Uri.parse('${AppLink.server}/api/config/weekly-jewel-value'),
+        headers: {
+          'Authorization': 'Bearer ${_services.getToken()}',
+          'Content-Type': 'application/json',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          final value = data['data']['value'].toString();
+          weeklyJewelValue.value = value;
+          
+          // حفظ القيمة في المخزن المحلي
+          _services.sharedPreferences.setString("WeeklyJewelValue", value);
+        }
+      }
+    } catch (e) {
+      print('Error refreshing weekly jewel value: $e');
+      // لا نظهر رسالة خطأ للمستخدم، نستمر في استخدام القيمة المخزنة محلياً
+    }
+  }
+
+  // شراء مكافأة
   void purchaseReward(Reward reward) {
     final int userPoints = profileController.profile.value?.user.points ?? 0;
 
     if (userPoints < reward.pointsCost) {
-      // استخدام CustomToast بدلاً من Get.snackbar
+      // استخدام CustomToast
       CustomToast.showErrorToast(
         message: 'ليس لديك نقاط كافية لشراء هذه المكافأة',
       );
     } else {
-      // استخدام CustomDialog بدلاً من AlertDialog
+      // استخدام CustomDialog
       CustomDialog.showConfirmation(
         title: 'تأكيد الشراء',
         message:
@@ -220,13 +345,11 @@ class MarketController extends GetxController {
         onConfirm: () {
           _confirmPurchase(reward);
         },
-        // icon: FontAwesomeIcons.shoppingCart,
-        // iconColor: AppColors.primary,
-        // confirmButtonColor: AppColors.primary,
       );
     }
   }
 
+  // تأكيد عملية الشراء
   Future<void> _confirmPurchase(Reward reward) async {
     isLoading.value = true;
 
@@ -236,44 +359,23 @@ class MarketController extends GetxController {
 
       // تحديث نقاط المستخدم من الاستجابة
       final int remainingPoints = response['remainingPoints'];
-      // final userReward = response['userReward'];
 
       // تحديث نقاط المستخدم في ملف التعريف
       profileController.updateUserPoints(remainingPoints);
 
-      const duration = Duration(
-          days: 0,
-          hours: 0,
-          minutes: 0,
-          seconds: 10,
-          milliseconds: 0,
-          microseconds: 0);
+      const duration = Duration(seconds: 10);
 
-      // استخدام CustomToast بدلاً من Get.snackbar
+      // إظهار رسالة نجاح الشراء
       CustomToast.showSuccessToast(
         duration: duration,
         message:
-            'تم شراء ${reward.title} بنجاح، سيتم التوصل معك من قبل فريق رادار لاستلام الجائزة خلال 24 ساعة',
+            'تم شراء ${reward.title} بنجاح، سيتم التواصل معك من قبل فريق رادار لاستلام الجائزة خلال 24 ساعة',
       );
 
-      // إظهار مربع حوار للتأكيد قبل فتح الواتساب باستخدام CustomDialog
-      // CustomDialog.showConfirmation(
-      //   title: 'متابعة المكافأة',
-      //   message: 'سيتم فتح واتساب لمتابعة مكافأتك مع فريق الدعم. هل ترغب في المتابعة؟',
-      //   cancelText: 'لاحقًا',
-      //   confirmText: 'متابعة على واتساب',
-      //   // icon: FontAwesomeIcons.whatsapp,
-      //   // iconColor: Colors.green,
-      //   // confirmButtonColor: Colors.green,
-      //   onConfirm: () {
-      //     _openWhatsApp(userReward);
-      //   },
-      // );
-
-      // إعادة تحميل الصفحة لتحديث البيانات
+      // إعادة تحميل المكافآت
       loadRewards();
     } catch (error) {
-      // استخدام CustomToast بدلاً من Get.snackbar
+      // إظهار رسالة الخطأ
       CustomToast.showErrorToast(
         message: error.toString(),
       );
@@ -281,53 +383,25 @@ class MarketController extends GetxController {
       isLoading.value = false;
     }
   }
-
-  Future<void> _openWhatsApp(dynamic userReward) async {
-    try {
-      // استخراج معلومات المكافأة
-      final rewardTitle = userReward['reward']['title'];
-      final rewardPoints = userReward['pointsSpent'];
-      final rewardId = userReward['id'];
-      final categoryName = userReward['reward']['category']['name'];
-
-      // إنشاء رسالة واتساب
-      final message = '''
-مرحبا فريق Radar،
-
-لقد قمت بشراء مكافأة:
-- المكافأة: $rewardTitle
-- الفئة: $categoryName
-- النقاط المستخدمة: $rewardPoints
-- رقم الطلب: $rewardId
-
-أرجو المساعدة في الحصول على المكافأة.
-
-شكرا لكم!
-''';
-
-      // رقم الواتساب للشركة (يجب تحديثه بالرقم الصحيح)
-      const phoneNumber = '+963941325008'; // تحديث الرقم حسب رقم واتساب الشركة
-
-      // إنشاء رابط واتساب مع الرسالة
-      final whatsappUrl =
-          'https://wa.me/$phoneNumber?text=${Uri.encodeComponent(message)}';
-
-      // فتح الرابط
-      final Uri uri = Uri.parse(whatsappUrl);
-
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        // استخدام CustomToast بدلاً من Get.snackbar
-        CustomToast.showErrorToast(
-          message: 'لا يمكن فتح واتساب، الرجاء التأكد من تثبيت التطبيق',
-        );
-      }
-    } catch (e) {
-      // استخدام CustomToast بدلاً من Get.snackbar
-      CustomToast.showErrorToast(
-        message: 'فشل في فتح واتساب: ${e.toString()}',
-      );
-    }
+  
+  // تحديث جميع البيانات
+  Future<void> refreshAllData() async {
+    // تحميل جميع البيانات المطلوبة بالتوازي
+    await Future.wait([
+      loadRewards().catchError((_) {}),
+      loadTopWinners().catchError((_) {}),
+      refreshWeeklyJewelValue().catchError((_) {}),
+    ]);
+  }
+  
+  // فتح QR Scanner
+  void openQrScanner() {
+    Get.to(() => QrScannerScreen());
+  }
+  
+  @override
+  void onClose() {
+    tabController.removeListener(_handleTabChange);
+    super.onClose();
   }
 }

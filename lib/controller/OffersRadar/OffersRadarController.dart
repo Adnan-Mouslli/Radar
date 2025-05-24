@@ -771,4 +771,17 @@ class OffersRadarController extends GetxController
       }
     });
   }
+
+  String getCurrencySymbol(String? priceType) {
+    const symbols = {
+      'SYP': 'ل.س',
+      'USD': '\$',
+      'EUR': '€',
+      'TRY': '₺',
+      'GBP': '£',
+      'SAR': 'ر.س',
+      'AED': 'د.إ',
+    };
+    return symbols[priceType] ?? '';
+  }
 }

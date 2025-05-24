@@ -4,6 +4,7 @@ class OfferModel {
   final String description;
   final List<String> images;
   final double price;
+  final String? priceType;
   final int discount;
   final String? contentId;
   final String categoryId;
@@ -14,7 +15,7 @@ class OfferModel {
   final CategoryModel category;
   final StoreModel store;
   final ContentModel? content;
-   double? distance;
+  double? distance;
 
   OfferModel({
     required this.id,
@@ -24,6 +25,7 @@ class OfferModel {
     required this.price,
     required this.discount,
     this.contentId,
+    this.priceType,
     required this.categoryId,
     required this.storeId,
     required this.isActive,
@@ -32,7 +34,7 @@ class OfferModel {
     required this.category,
     required this.store,
     this.content,
-     this.distance,
+    this.distance,
   });
 
   // Getter for main image URL
@@ -67,6 +69,7 @@ class OfferModel {
       contentId: json['contentId'],
       categoryId: json['categoryId'],
       storeId: json['storeId'],
+      priceType: json['priceType'],
       isActive: json['isActive'],
       startDate: DateTime.parse(json['startDate']),
       endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
@@ -77,6 +80,17 @@ class OfferModel {
           : null,
       distance: distance ?? 0.0,
     );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'images': images,
+      'categoryId': categoryId,
+      'storeId': storeId,
+      'isActive': isActive
+    };
   }
 }
 

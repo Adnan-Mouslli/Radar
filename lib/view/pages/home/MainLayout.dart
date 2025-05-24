@@ -6,8 +6,8 @@ import 'package:radar/view/pages/home/HomeScreen.dart';
 import 'package:radar/view/pages/home/MarketScreen.dart';
 import 'package:radar/view/pages/home/OffersRadarScreen.dart';
 import 'package:radar/view/pages/home/ReelsScreen.dart';
-import 'package:radar/view/pages/home/TipsScreen.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:radar/view/pages/home/StoresScreen.dart';
 
 class MainLayout extends StatelessWidget {
   final controller = Get.put(MainLayoutController());
@@ -30,9 +30,9 @@ class MainLayout extends StatelessWidget {
       case 1:
         return OffersRadarScreen();
       case 2:
-        return MarketScreen();
+        return StoresScreen();
       case 3:
-        return TipsScreen();
+        return MarketScreen();
       case 4:
         return HomeScreen();
       default:
@@ -65,11 +65,11 @@ class MainLayout extends StatelessWidget {
           () => Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // إعادة ترتيب الأيقونات بحيث يكون الرادار أول شيء من اليسار
               _buildNavItem(0, PhosphorIcons.playCircleBold, 'ريلز'),
-              _buildNavItem(2, PhosphorIcons.storefrontBold, 'المتجر'),
               _buildNavItem(1, PhosphorIcons.target, 'الرادار'),
-              _buildNavItem(3, PhosphorIcons.lightbulbBold, 'الإرشادات'),
+              _buildNavItem(
+                  2, PhosphorIcons.storefront, 'المتاجر'), // المتاجر المشتركة
+              _buildNavItem(3, PhosphorIcons.trophy, 'الجوائز'), // متجر النقاط
               _buildNavItem(4, PhosphorIcons.userCircleBold, 'حسابي'),
             ],
           ),

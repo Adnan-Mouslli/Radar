@@ -390,9 +390,9 @@ class ReelsController extends GetxController with GetTickerProviderStateMixin {
 
     // تحميل المزيد من الريلز عند الاقتراب من النهاية
     final currentPage = pageController.page?.round() ?? 0;
-    if (currentPage >= reels.length - 3) {
-      loadMoreReels();
-    }
+    // if (currentPage >= reels.length - 3) {
+    //   loadMoreReels();
+    // }
 
     // تنظيف دوري للمتحكمات البعيدة
     if (currentPage % 5 == 0 && !_isPerformingCleanup) {

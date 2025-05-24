@@ -69,7 +69,8 @@ dependencies:
   syncfusion_flutter_pdfviewer:
   phosphor_flutter: ^1.0.0
 
-
+  mobile_scanner:
+  permission_handler:
 
 dev_dependencies:
   flutter_test:

@@ -483,7 +483,10 @@ class ReelItem extends GetView<ReelsController> {
             Obx(() {
               final isLiked = controller.likedReels[reel.id] ?? false;
               return _buildVerticalActionButton(
-                icon: isLiked ? Icons.favorite : Icons.favorite_border,
+                icon: isLiked
+                    ? Icons.favorite
+                    : Icons
+                        .favorite_outline, // تغيير من favorite_border إلى favorite_outline
                 label: formatCount(reel.counts.likedBy),
                 isLiked: isLiked,
                 onTap: () => controller.toggleLike(index),
@@ -491,30 +494,24 @@ class ReelItem extends GetView<ReelsController> {
             }),
             const SizedBox(height: 16),
             _buildVerticalActionButton(
-              icon: Icons.remove_red_eye_outlined,
+              icon: Icons.remove_red_eye_outlined, // هذا بالفعل outlined
               label: formatCount(reel.counts.viewedBy),
               isViewIcon: true,
             ),
-
-            /* أمثلة على التنسيق:
-              1,000 -> 1K
-              1,500 -> 1.5K
-              10,000 -> 10K
-              150,000 -> 150K
-              1,000,000 -> 1M
-              1,500,000 -> 1.5M
-            */
-
             const SizedBox(height: 16),
             _buildVerticalActionButton(
-              icon: Icons.share,
+              icon: Icons.share_outlined, // تغيير من share إلى share_outlined
               label: "مشاركة",
               onTap: () => controller.shareReel(index),
             ),
             const SizedBox(height: 16),
             _buildVerticalActionButton(
               customIcon: FaIcon(
-                hasStore ? FontAwesomeIcons.store : FontAwesomeIcons.whatsapp,
+                hasStore
+                    ? FontAwesomeIcons
+                        .storeAlt // استخدام أيقونة متجر مفرغة من Font Awesome
+                    : FontAwesomeIcons
+                        .whatsapp, // واتساب ليس له نسخة مفرغة في Font Awesome، أو يمكنك استخدام FontAwesomeIcons.whatsappSquare
                 color: AppColors.white,
                 size: hasStore ? 22 : 25,
               ),
@@ -695,42 +692,39 @@ class ReelItem extends GetView<ReelsController> {
           // عرض خلفية سوداء ثابتة للبداية
           Container(color: Colors.black),
 
-          // عرض الصورة بتلاشي سلس جداً
-          AnimatedOpacity(
-            opacity: 1.0,
-            duration: Duration(milliseconds: 150),
-            curve: Curves.easeInOut,
-            child: Center(
-              child: AspectRatio(
-                aspectRatio: imageAspectRatio ?? 9 / 16,
-                child: CachedNetworkImage(
-                  imageUrl: mediaUrl,
-                  fit: BoxFit.contain,
-                  fadeInDuration: Duration(milliseconds: 150),
-                  fadeOutDuration: Duration.zero,
-                  memCacheWidth: 1080,
-                  placeholderFadeInDuration: Duration.zero,
-                  imageBuilder: (context, imageProvider) {
-                    // استخدام callbacku لتحديث النسبة
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _updateImageAspectRatio(mediaUrl, imageProvider);
-                    });
+          // عرض الصورة بنسبتها الأصلية في الوسط
+          Center(
+            child: AspectRatio(
+              aspectRatio: imageAspectRatio ??
+                  9 / 16, // استخدام النسبة المحسوبة، أو النسبة الافتراضية
+              child: CachedNetworkImage(
+                imageUrl: mediaUrl,
+                fit: BoxFit
+                    .contain, // تغيير من cover إلى contain للحفاظ على النسبة الصحيحة
+                fadeInDuration: Duration(milliseconds: 150),
+                fadeOutDuration: Duration.zero,
+                memCacheWidth: 1080,
+                placeholderFadeInDuration: Duration.zero,
+                imageBuilder: (context, imageProvider) {
+                  // تحديث نسبة الأبعاد عند تحميل الصورة
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _updateImageAspectRatio(mediaUrl, imageProvider);
+                  });
 
-                    return Container(
-                      decoration: BoxDecoration(
-                        image: DecorationImage(
-                          image: imageProvider,
-                          fit: BoxFit.contain,
-                        ),
+                  return Container(
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: imageProvider,
+                        fit: BoxFit.contain, // تغيير من cover إلى contain
                       ),
-                    );
-                  },
-                  placeholder: (context, url) => Container(color: Colors.black),
-                  errorWidget: (context, url, error) => Container(
-                    color: Colors.grey[800],
-                    child: Center(
-                        child: Icon(Icons.broken_image, color: Colors.white60)),
-                  ),
+                    ),
+                  );
+                },
+                placeholder: (context, url) => Container(color: Colors.black),
+                errorWidget: (context, url, error) => Container(
+                  color: Colors.grey[800],
+                  child: Center(
+                      child: Icon(Icons.broken_image, color: Colors.white60)),
                 ),
               ),
             ),
@@ -757,7 +751,7 @@ class ReelItem extends GetView<ReelsController> {
     });
   }
 
-// دالة مساعدة لحساب وتخزين نسبة أبعاد الصورة
+  // دالة مساعدة لحساب وتخزين نسبة أبعاد الصورة
   void _updateImageAspectRatio(
       String imageUrl, ImageProvider imageProvider) async {
     try {
